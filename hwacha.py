@@ -220,7 +220,7 @@ def main():
 if __name__ == "__main__":
 
     main()
-
+#cat .bash_history | grep "ssh .*-i"
 #find /home/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null | xargs -d "\n" tail -vn +1
 
 
