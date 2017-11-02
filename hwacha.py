@@ -289,7 +289,11 @@ def main():
         if not args.options:
             lport = 8080
         else:
-            lport = options['LPORT']
+            try:
+                lport = options['LPORT']
+            except KeyError:
+                print "Must supply an LHOST for use with mimipenguin"
+                exit()
 
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password)
     if args.module == "keys":
