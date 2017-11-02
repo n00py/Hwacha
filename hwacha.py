@@ -286,10 +286,11 @@ def main():
         options = dict(x.split('=') for x in args.options.split(' '))
 
     if args.module == "mimipenguin":
-        try:
-            lport = options['LPORT']
-        except KeyError:
+        if not args.options:
             lport = 8080
+        else:
+            lport = options['LPORT']
+
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password)
     if args.module == "keys":
         hunt_keys(targets, args.username, args.password)
