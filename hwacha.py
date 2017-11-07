@@ -11,7 +11,6 @@ import time
 import os
 import random
 import string
-import re
 CRED = '\033[91m'
 CEND = '\033[0m'
 CGREEN  = '\33[32m'
@@ -92,7 +91,7 @@ def execute_command(ip, username, password, identity_file, command, timeout):
             stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
             print CGREEN + "[+] Executed on " + str(ip) + "..." + CEND
             for line in stdout:
-                print line
+                print line.strip()
     except socket.timeout:
         print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
@@ -329,7 +328,7 @@ def make_port(port):
 
 def main():
     parser = argparse.ArgumentParser(description='ClubPenguin')
-    parser.add_argument("first_arg", nargs=1)
+    parser.add_argument('-t', '--target', help='IP Address, IP range, or subnet', required=True)
     parser.add_argument('-u','--username', help='SSH username',required=True)
     parser.add_argument('-p','--password',help='SSH password', required=False, default=False)
     parser.add_argument('-i', '--identity_file', help='SSH key path', required=False, default=False)
@@ -337,8 +336,7 @@ def main():
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
     args = parser.parse_args()
-    ip = args.first_arg[0]
-    targets = parse_targets(ip)
+    targets = parse_targets(args.target)
 
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
