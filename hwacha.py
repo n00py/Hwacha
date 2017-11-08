@@ -128,19 +128,22 @@ def start_thread(targets, function, args):
         if function == "execute_command":
             t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4],args[5]))
             t.start()
-        time.sleep(.25)
+        time.sleep(.2)
         if function == "copy_exec":
             t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
-        time.sleep(.25)
+        time.sleep(.2)
         if function == "steal":
             t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4],args[5]))
             t.start()
-        time.sleep(.25)
+        time.sleep(.2)
         if function == "check_privs":
             t = threading.Thread(target=check_privs, args=(ip, args[1], args[2], args[3], args[4]))
             t.start()
-        time.sleep(.25)
+        time.sleep(.2)
+        if function == "login":
+            t = threading.Thread(target=connect, args=(ip, args[1], args[2], args[3]))
+            t.start()
 
 
 def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password, identity_file):
@@ -344,6 +347,18 @@ def make_port(port):
     hex_port += '\\x' + port[2:4].zfill(2)
     return hex_port
 
+def banner():
+    art = CGREEN +  """    &&&&     &&         &&        &&
+&&&&&&&&&&&& &&         &&        &&
+   &&&&&&    &&     &&&&&&&&&&    &&
+  &&    &&   &&&&&      &&        &&&&&
+ &&      &&  &&&&&    &&  &&      &&&&&
+  &&    &&   &&      &&    &&     &&
+   &&&&&&    &&    &&&      &&&   &&
+     &&      &&   &&          &&  &&
+&&&&&&&&&&&&&&&                   &&
+             &&                   &&""" + CEND
+    return art
 
 def main():
     parser = argparse.ArgumentParser(description='ClubPenguin')
@@ -355,10 +370,10 @@ def main():
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
     args = parser.parse_args()
+    print banner()
     targets = parse_targets(args.target)
     if not args.command and not args.module:
-        for ip in targets:
-            connect(ip, args.username, args.password, args.identity_file)
+        start_thread(targets, "login", [22, args.username, args.password, args.identity_file, 1])
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
         start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, args.command, 10])
