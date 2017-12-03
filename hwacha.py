@@ -463,8 +463,7 @@ def main():
         print banner()
         print_modules()
         sys.exit()
-
-    if not args.target or not args.username or not args.password:
+    if not args.target or not args.username and (not args.password or not args.identity_file):
         print banner()
         examples()
         sys.exit()
