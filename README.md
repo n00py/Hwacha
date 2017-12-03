@@ -1,7 +1,7 @@
 # Hwacha
 ![alt tag](https://github.com/n00py/hwacha/blob/master/hwacha.png)
 
-$python hwacha.py 
+    $python hwacha.py 
     &&&&     &&         &&        &&
 &&&&&&&&&&&& &&         &&        &&      Created by Esteban Rodriguez   /~~\_
    &&&&&&    &&     &&&&&&&&&&    &&	  Web: https://www.n00py.io     /| '` *\
