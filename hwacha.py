@@ -417,7 +417,7 @@ def print_modules():
     print CRED + "Available Modules:" + CEND
     print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
     print    "                              REQURED ARGUMENTS: LHOST , LPORT"
-    print "                              OPTIONAL ARGUMENTS: TYPE {python, php, 64, osx}"
+    print "                              OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
     print "                              OPTIONAL ARGUMENTS: LHOST, LPORT"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
