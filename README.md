@@ -3,7 +3,7 @@
 
 https://www.n00py.io/2017/12/raining-shells-on-linux-environments-with-hwacha/
 
-Hwacha is a tool to quickly execute payloads on UNIX based systems.  Easily collect artifacts or execute shellcode on an entire subnet of systems for which credentials are obtained. 
+Hwacha is a tool to quickly execute payloads on *Nix based systems.  Easily collect artifacts or execute shellcode on an entire subnet of systems for which credentials are obtained. 
 
 
     $python hwacha.py 
