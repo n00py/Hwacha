@@ -31,7 +31,7 @@ Hwacha is a tool to quickly execute payloads on UNIX based systems.  Easily coll
     Available Modules:
     [*] meterpreter               Use this to execute a meterpreter agent on the target(s).
                                   REQURED ARGUMENTS: LHOST , LPORT
-                                  OPTIONAL ARGUMENTS: TYPE {python, php, 64, osx}
+                                  OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}
     [*] mimipenguin               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)
                                   OPTIONAL ARGUMENTS: LHOST, LPORT
     [*] keys                      Use this to collect SSH private keys from the target(s).
