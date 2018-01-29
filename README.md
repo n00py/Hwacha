@@ -46,3 +46,7 @@ Hwacha is a tool to quickly execute payloads on *Nix based systems.  Easily coll
                                   REQURED ARGUMENTS: PATH
     [*] shellcode               Use this to execute custom shellcode on the target(s).
                                   REQURED ARGUMENTS: PATH
+
+
+Requires paramiko:
+    pip install paramiko
