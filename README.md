@@ -49,4 +49,5 @@ Hwacha is a tool to quickly execute payloads on *Nix based systems.  Easily coll
 
 
 Requires paramiko:
-    pip install paramiko
+
+    pip install paramiko 
