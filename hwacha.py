@@ -587,7 +587,7 @@ def main():
         try:
             m_port = options['LPORT']
         except KeyError:
-            print "Must supply an LPORT for use with meterpreter"
+            print "Must supply an LPORT for use with meterpreter "
             exit()
         try:
             type = options['TYPE']
