@@ -37,6 +37,7 @@ Hwacha is a tool to quickly execute payloads on *Nix based systems.  Easily coll
     [*] keys                      Use this to collect SSH private keys from the target(s).
     [*] history                   Use this to collect shell history files from the target(s).
     [*] privs                     Use this to enumerate sudo privileges on the targets(s).
+    [*] backdoor                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s).
     [*] web_delivery               Use this to execute a python script on the target(s).
                                   REQURED ARGUMENTS: PATH
                                   OPTIONAL ARGUMENTS: LISTEN
