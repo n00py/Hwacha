@@ -445,7 +445,7 @@ def print_modules():
     print    "                                  REQURED ARGUMENTS: LHOST , LPORT"
     print "                                 OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
-    print "                                 OPTIONAL ARGUMENTS: LHOST, LPORT"
+    print "                                 OPTIONAL ARGUMENTS: LISTEN"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
     print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
@@ -510,7 +510,7 @@ def main():
             try:
                 lport = options['LISTEN']
             except KeyError:
-                print "Must supply an LHOST for use with mimipenguin"
+                print "Change the listening web server port with the LISTEN option"
                 exit()
         mimipenguin(get_ip(), lport, targets, 22, args.username, args.password, args.identity_file)
 
