@@ -33,7 +33,7 @@ Hwacha is a tool to quickly execute payloads on *Nix based systems.  Easily coll
                                   REQURED ARGUMENTS: LHOST , LPORT
                                   OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}
     [*] mimipenguin               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)
-                                  OPTIONAL ARGUMENTS: LHOST, LPORT
+                                  OPTIONAL ARGUMENTS: LISTEN
     [*] keys                      Use this to collect SSH private keys from the target(s).
     [*] history                   Use this to collect shell history files from the target(s).
     [*] privs                     Use this to enumerate sudo privileges on the targets(s).
