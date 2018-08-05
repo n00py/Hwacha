@@ -478,10 +478,10 @@ def banner():
 def main():
     parser = argparse.ArgumentParser(description='Hwacha, a tool for sending payloads en masse via SSH')
     parser.add_argument('-t', '--target', help='IP Address, IP range, or subnet', required=False, default=False)
-    parser.add_argument('-u','--username', help='SSH username',required=False, default=False)
-    parser.add_argument('-p','--password',help='SSH password', required=False, default=False)
+    parser.add_argument('-u', '--username', help='SSH username', required=False, default=False)
+    parser.add_argument('-p', '--password',help='SSH password', required=False, default=False)
     parser.add_argument('-i', '--identity_file', help='SSH key path', required=False, default=False)
-    parser.add_argument('-x','--command',help='Command to execute', required=False)
+    parser.add_argument('-x', '--command',help='Command to execute', required=False)
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
     parser.add_argument('-L', '--list', help='List available modules and options', required=False, action='store_true')
