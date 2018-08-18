@@ -43,11 +43,11 @@ def banner():
 
 
 def help():
-    print CGREEN + 'Usage: hwacha_listener.py [-h] -a ADDRESS -p PORT'
+    print CGREEN + 'Usage: hwacha_listener.py [-h] -a ADDRESS -p PORT' + CEND
     print CRED + 'Example usage:' + CEND
     print CYELLOW + 'python hwacha_listener.py -a 0.0.0.0 -p 8080' + CEND
     print CRED + 'For further explanation use:' + CEND
-    print CYELLOW + 'python hwacha_listener.py -h'
+    print CYELLOW + 'python hwacha_listener.py -h' + CEND
 
 
 def main():
