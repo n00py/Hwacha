@@ -515,7 +515,13 @@ def main():
         print banner()
         examples()
         sys.exit()
-    targets = parse_targets(args.target)
+    if os.path.exists(args.target):  #parse targets file
+            with open(args.target, 'r') as target_file:
+                for target_entry in target_file:
+                    targets = parse_targets(target_entry)
+    else:
+        targets = parse_targets(args.target)
+
     if not args.command and not args.module:
         start_thread(targets, "login", [22, args.username, args.password, args.identity_file, 1])
     if args.command:
