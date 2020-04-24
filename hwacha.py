@@ -143,7 +143,7 @@ def check_privs(ip, username, password, identity_file, timeout):
     client = connect(ip, username, password, identity_file)
     try:
         if client:
-            stdin, stdout, stderr = client.exec_command("sudo --list", timeout=timeout, get_pty=True)
+            stdin, stdout, stderr = client.exec_command("sudo -L || sudo --list || sudo -l", timeout=timeout, get_pty=True)
             if password:
                 stdin.write(password + '\n')
                 stdin.flush()
